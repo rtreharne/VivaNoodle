@@ -5,9 +5,27 @@ class Assignment(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     allow_multiple_submissions = models.BooleanField(default=False)
+    viva_duration_seconds = models.IntegerField(default=600)  # 10 minutes default
+
+    # NEW FIELDS
+    viva_instructions = models.TextField(
+        blank=True,
+        help_text="Guidance for how the AI should conduct the viva (tone, focus, probing depth, do/don't)."
+    )
+
+    rubric_text = models.TextField(
+        blank=True,
+        help_text="Optional marking rubric (never shown to students — used for instructor review and AI summaries)."
+    )
+
+    instructor_notes = models.TextField(
+        blank=True,
+        help_text="Private instructor notes about the assignment or viva. Not visible to students."
+    )
 
     def __str__(self):
         return self.title
+
 
 class Submission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)

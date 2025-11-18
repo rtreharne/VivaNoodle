@@ -5,7 +5,12 @@
 
 <h2>{{ assignment.title }}</h2>
 
-
+<!-- Edit Assignment Button -->
+<div class="button-group" style="margin-bottom: 20px;">
+    <a href="{% url 'assignment_edit' %}" class="button primary">
+        Edit Assignment
+    </a>
+</div>
 
 <div class="card">
     <h3>Student Submissions</h3>
@@ -38,10 +43,15 @@
                                 Submitted ({{ sub.created_at|date:"Y-m-d H:i" }})
                             </td>
                             <td style="padding:8px;">
-                                <a href="{% url 'submission_status' sub.id %}" class="button">
-                                    View
-                                </a>
+                                <a href="{% url 'submission_status' sub.id %}" class="button">View</a>
+
+                                {% if sub.vivasession %}
+                                    <a href="{% url 'viva_summary' sub.vivasession.id %}" class="button" style="margin-left:8px;">
+                                        Viva
+                                    </a>
+                                {% endif %}
                             </td>
+
                         {% else %}
                             <td style="padding:8px; color:red;">
                                 Not Submitted
@@ -56,7 +66,6 @@
                 {% endif %}
 
             {% endfor %}
-
 
         </tbody>
     </table>

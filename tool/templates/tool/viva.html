@@ -1,0 +1,366 @@
+{% extends "tool/base.html" %}
+{% block content %}
+
+<!-- VIVA INTRO OVERLAY -->
+<div id="vivaIntro"
+     style="position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;">
+    
+    <div style="background: white;
+                padding: 30px;
+                max-width: 600px;
+                border-radius: 12px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.2);">
+
+        <h2 style="margin-top:0;">Before You Begin</h2>
+        
+        <p>This viva-style assessment will ask you questions about your submitted work.  
+        The goal is to confirm your understanding and help you reflect on your own work — 
+        not to trick or punish you.</p>
+
+        <h3>What to Expect</h3>
+        <ul>
+            <li>You will have <strong>{{ remaining_seconds }} seconds</strong> to complete the viva.</li>
+            <li>Questions will appear one at a time.</li>
+            <li>The timer cannot be paused.</li>
+        </ul>
+
+        <h3>Your Responsibilities</h3>
+        <ul>
+            <li>Please engage honestly in your own words.</li>
+            <li>Do not switch tabs or copy/paste from external sources.</li>
+            <li>Behaviours such as pasting, cutting, copying, or leaving the page may be logged.</li>
+        </ul>
+
+        <p style="margin-top:15px;">When you are ready, click below to begin.</p>
+
+        <button id="startVivaBtn" class="button"
+                style="width: 100%; margin-top: 20px;">
+            Begin Viva
+        </button>
+    </div>
+</div>
+
+
+<h2>Viva Session</h2>
+
+<div id="timer" style="
+    font-weight: bold;
+    font-size: 20px;
+    margin-bottom: 15px;
+    text-align: center;
+">
+    Time remaining: <span id="timeLeft">{{ remaining_seconds }}</span>
+</div>
+
+
+
+<div id="viva-container" class="card" style="padding: 20px;">
+    
+    <!-- Messages -->
+    <div id="messages" 
+         style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background:#fff;">
+        <!-- Messages will appear here -->
+    </div>
+
+    <!-- Input Row -->
+    <div style="display:flex; gap:10px; margin-top:20px;">
+        <input id="messageInput" type="text" 
+               placeholder="Type your answer…" 
+               style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        
+        <button id="sendBtn" class="button">Send</button>
+    </div>
+</div>
+
+<script>
+    const sessionId = {{ session.id }};
+    const sendUrl = "{% url 'viva_send_message' %}";
+    const pollUrl = "{% url 'viva_session' session.id %}?poll=1";
+    let vivaStarted = false;
+
+    let shownMessages = 0;
+    let typingBubble = null;
+    let typingStart = null;
+    const MIN_TYPING_TIME = 3000; // 3 seconds
+
+    // ------------------------------------------------------------
+    // START BUTTON
+    // ------------------------------------------------------------
+    document.getElementById("startVivaBtn").addEventListener("click", () => {
+        vivaStarted = true;
+        document.getElementById("vivaIntro").style.display = "none";
+
+        startPolling();
+        startTimer();
+
+        // Show typing bubble immediately for first AI question
+        showTypingBubble();
+
+        // Ask backend to generate first question
+        fetch(sendUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                text: "__start__"
+            })
+        });
+    });
+
+    // ------------------------------------------------------------
+    // BEHAVIOUR LOGGING
+    // ------------------------------------------------------------
+    function logEvent(eventType, extra = {}) {
+        fetch("{% url 'viva_log_event' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                event_type: eventType,
+                event_data: extra
+            })
+        });
+    }
+
+    document.addEventListener("copy", () => logEvent("copy"));
+    document.addEventListener("cut", () => logEvent("cut"));
+    document.addEventListener("paste", () => logEvent("paste"));
+    window.addEventListener("blur", () => logEvent("blur"));
+    window.addEventListener("focus", () => logEvent("focus"));
+
+    // ------------------------------------------------------------
+    // SEND MESSAGE
+    // ------------------------------------------------------------
+    document.getElementById("sendBtn").addEventListener("click", sendMessage);
+    document.getElementById("messageInput").addEventListener("keypress", e => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    function sendMessage() {
+        if (!vivaStarted) return;
+
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        messageInput.value = "";
+
+        // 1️⃣ Immediately show the student's own message locally
+        addMessage("student", text);
+
+        // 2️⃣ Then immediately show AI typing animation
+        showTypingBubble();
+
+        // 3️⃣ Send to backend (do not wait)
+        fetch(sendUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                text: text
+            })
+        });
+    }
+
+
+    // ------------------------------------------------------------
+    // POLLING — but enforce 3-second minimum typing time
+    // ------------------------------------------------------------
+    function startPolling() {
+        setInterval(() => {
+            if (!vivaStarted) return;
+
+            fetch(pollUrl)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.messages) return;
+
+                    const msgs = data.messages;
+                    const newMessages = msgs.slice(shownMessages);
+
+                    newMessages.forEach(msg => {
+
+                        // Skip hidden __start__
+                        if (msg.sender === "student" && msg.text === "__start__") return;
+
+                        // Skip ALL student messages (local echo already did them)
+                        if (msg.sender === "student") return;
+
+                        // Process AI messages only
+                        if (msg.sender === "ai") {
+
+                            // Ensure typing bubble is visible
+                            if (!typingBubble) {
+                                showTypingBubble();
+                            }
+
+                            const elapsed = Date.now() - (typingStart || Date.now());
+                            const wait = Math.max(0, MIN_TYPING_TIME - elapsed);
+
+                            setTimeout(() => {
+                                if (typingBubble) {
+                                    typingBubble.remove();
+                                    typingBubble = null;
+                                }
+                                addMessage("ai", msg.text);
+                            }, wait);
+                        }
+                    });
+
+
+                    shownMessages = msgs.length;
+                });
+        }, 800);
+    }
+
+    // ------------------------------------------------------------
+    // TYPING BUBBLE (with animation)
+    // ------------------------------------------------------------
+    function showTypingBubble() {
+        if (typingBubble) return;
+
+        const messagesDiv = document.getElementById("messages");
+        const bubble = document.createElement("div");
+
+        bubble.style.margin = "10px 0";
+        bubble.style.padding = "10px 15px";
+        bubble.style.borderRadius = "10px";
+        bubble.style.maxWidth = "80%";
+        bubble.style.background = "#eee";
+        bubble.style.marginRight = "auto";
+        bubble.style.opacity = "0.7";
+
+        bubble.innerHTML = `
+            <span class="typing-dots" style="display:inline-block;width:40px;">
+                <span style="animation: blink 1s infinite;">.</span>
+                <span style="animation: blink 1s infinite .25s;">.</span>
+                <span style="animation: blink 1s infinite .5s;">.</span>
+            </span>
+        `;
+
+        typingBubble = bubble;
+        typingStart = Date.now();
+
+        messagesDiv.appendChild(bubble);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Blink animation
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @keyframes blink {
+            0% { opacity: .2; }
+            20% { opacity: 1; }
+            100% { opacity: .2; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // ------------------------------------------------------------
+    // ADD MESSAGE BUBBLE
+    // ------------------------------------------------------------
+    function addMessage(sender, text) {
+        const messagesDiv = document.getElementById("messages");
+        const bubble = document.createElement("div");
+
+        bubble.style.margin = "10px 0";
+        bubble.style.padding = "10px 15px";
+        bubble.style.borderRadius = "10px";
+        bubble.style.maxWidth = "80%";
+
+        if (sender === "student") {
+            bubble.style.background = "#e0ffe0";
+            bubble.style.marginLeft = "auto";
+        } else {
+            bubble.style.background = "#eee";
+            bubble.style.marginRight = "auto";
+        }
+
+        bubble.textContent = text;
+        messagesDiv.appendChild(bubble);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // ------------------------------------------------------------
+    // TIMER
+    // ------------------------------------------------------------
+    let timeLeft = {{ remaining_seconds }};
+    const ended = {{ viva_ended|yesno:"true,false" }};
+
+    function startTimer() {
+        if (ended) {
+            disableInput();
+            document.getElementById("timeLeft").textContent = "00:00";
+            return;
+        }
+
+        document.getElementById("timeLeft").textContent = formatTime(timeLeft);
+
+        const interval = setInterval(() => {
+            if (!vivaStarted) return;
+
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                disableInput();
+                document.getElementById("timeLeft").textContent = "00:00";
+                return;
+            }
+
+            timeLeft -= 1;
+            document.getElementById("timeLeft").textContent = formatTime(timeLeft);
+
+            if (timeLeft === 0) disableInput();
+
+        }, 1000);
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    // ------------------------------------------------------------
+    // DISABLE INPUT + END SESSION
+    // ------------------------------------------------------------
+    function disableInput() {
+        document.getElementById("messageInput").disabled = true;
+        document.getElementById("sendBtn").disabled = true;
+
+        logEvent("viva_end");
+
+        setTimeout(() => {
+            window.location.href = "/viva/summary/" + sessionId + "/";
+        }, 800);
+    }
+
+    // ------------------------------------------------------------
+    // CSRF helper
+    // ------------------------------------------------------------
+    function getCookie(name) {
+        const cookieValue = document.cookie
+            .split("; ")
+            .find(row => row.startsWith(name + "="))
+            ?.split("=")[1];
+        return cookieValue || "";
+    }
+</script>
+
+
+
+{% endblock %}

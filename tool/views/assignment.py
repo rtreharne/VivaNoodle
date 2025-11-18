@@ -25,12 +25,33 @@ def assignment_edit_save(request):
     resource_link_id = request.session.get("lti_resource_link_id")
     assignment = Assignment.objects.get(slug=resource_link_id)
 
+    # -------------------------------------
+    # Basic fields
+    # -------------------------------------
     assignment.title = request.POST.get("title", assignment.title)
     assignment.description = request.POST.get("description", assignment.description)
-    assignment.allow_multiple_submissions = (request.POST.get("allow_multiple") == "true")
+
+    # Checkbox fix: HTML checkboxes send "on" when checked
+    assignment.allow_multiple_submissions = (
+        request.POST.get("allow_multiple") == "on"
+    )
+
+    # Duration
+    duration = request.POST.get("viva_duration_seconds")
+    if duration and duration.isdigit():
+        assignment.viva_duration_seconds = int(duration)
+
+    # -------------------------------------
+    # NEW: Viva customisation fields
+    # -------------------------------------
+    assignment.viva_instructions = request.POST.get("viva_instructions", "")
+    assignment.rubric_text = request.POST.get("rubric_text", "")
+    assignment.instructor_notes = request.POST.get("instructor_notes", "")
+
     assignment.save()
 
     return redirect("assignment_view")
+
 
 
 def assignment_view(request):

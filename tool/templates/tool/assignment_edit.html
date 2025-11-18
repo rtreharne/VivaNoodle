@@ -3,26 +3,66 @@
 
 <h2>Edit Assignment Settings</h2>
 
-<div class="card">
+<div class="card" style="padding: 30px;">
 
-    <form method="POST" action="{% url 'assignment_edit_save' %}">
+    <form method="POST" action="{% url 'assignment_edit_save' %}" class="settings-form">
         {% csrf_token %}
 
-        <label for="title">Title</label>
-        <input id="title" name="title" value="{{ assignment.title }}" required>
+        <!-- TITLE (read-only) -->
+        <div class="form-row">
+            <label>Assignment Title</label>
+            <input value="{{ assignment.title }}" disabled class="readonly">
+            <div class="help">Title comes from Canvas and cannot be edited here.</div>
+        </div>
 
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="4">{{ assignment.description }}</textarea>
+        <!-- DESCRIPTION -->
+        <div class="form-row">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4">{{ assignment.description }}</textarea>
+        </div>
 
-        <label for="allow_multiple">
-            <input type="checkbox" id="allow_multiple" name="allow_multiple"
-                   {% if assignment.allow_multiple_submissions %}checked{% endif %}>
-            Allow multiple submissions
-        </label>
+        <!-- CHECKBOX -->
+        <div class="form-row">
+            <label for="allow_multiple">Multiple Submissions</label>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="allow_multiple" name="allow_multiple"
+                       {% if assignment.allow_multiple_submissions %}checked{% endif %}>
+                <span>Allow students to submit more than once</span>
+            </div>
+        </div>
 
-        <button type="submit" class="button" style="margin-top: 20px;">
-            Save Changes
-        </button>
+        <!-- DURATION -->
+        <div class="form-row">
+            <label for="viva_duration_seconds">Viva Duration (seconds)</label>
+            <input id="viva_duration_seconds" name="viva_duration_seconds" 
+                   type="number" min="60" value="{{ assignment.viva_duration_seconds }}">
+        </div>
+
+        <!-- VIVA INSTRUCTIONS -->
+        <div class="form-row">
+            <label for="viva_instructions">Viva Instructions</label>
+            <textarea id="viva_instructions" name="viva_instructions" rows="6"
+            placeholder="How should the AI conduct the viva? (tone, strictness, what to probe, what to avoid, discipline-specific norms)">{{ assignment.viva_instructions }}</textarea>
+            <div class="help">These instructions directly influence how the AI questions the student.</div>
+        </div>
+
+        <!-- RUBRIC -->
+        <div class="form-row">
+            <label for="rubric_text">Marking Rubric</label>
+            <textarea id="rubric_text" name="rubric_text" rows="6"
+            placeholder="Internal rubric for instructor use and AI summary generation. Not visible to students.">{{ assignment.rubric_text }}</textarea>
+        </div>
+
+        <!-- INSTRUCTOR NOTES -->
+        <div class="form-row">
+            <label for="instructor_notes">Instructor Notes</label>
+            <textarea id="instructor_notes" name="instructor_notes" rows="4"
+            placeholder="Private notes about the assignment or viva.">{{ assignment.instructor_notes }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="button primary">Save Changes</button>
+        </div>
 
     </form>
 

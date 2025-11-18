@@ -1,0 +1,56 @@
+{% extends "tool/base.html" %}
+{% block content %}
+
+<h2>Viva Summary</h2>
+
+<div class="card">
+    <p><strong>Started:</strong> {{ session.started_at }}</p>
+    <p><strong>Ended:</strong> {{ session.ended_at }}</p>
+
+    <p><strong>Duration:</strong>
+        {% if formatted_duration %}
+            {{ formatted_duration }}
+        {% else %}
+            Still in progress
+        {% endif %}
+    </p>
+
+    {% if flags %}
+    <p><strong>Integrity Flags:</strong></p>
+    <ul>
+        {% for f in flags %}
+            <li style="color:#b30000; font-weight:600;">🚩 {{ f }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+        <p><strong>Integrity Flags:</strong> None detected.</p>
+    {% endif %}
+
+
+    <a href="{% url 'viva_logs' session.id %}" class="button" style="margin-right: 10px;">
+        View Behaviour Logs
+    </a>
+</div>
+
+<div class="card">
+    <h3>Transcript</h3>
+
+    {% for msg in messages %}
+        <div style="
+            margin-bottom: 12px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            background: {% if msg.sender == 'student' %}#e0ffe0{% else %}#f1f1f1{% endif %};
+            max-width: 90%;
+        ">
+            <strong>{{ msg.sender|title }}:</strong><br>
+            <div style="white-space: pre-wrap; margin-top: 4px;">
+                {{ msg.text }}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<a href="{% url 'assignment_view' %}" class="button">Return to Assignment</a>
+
+{% endblock %}

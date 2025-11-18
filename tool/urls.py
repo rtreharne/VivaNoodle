@@ -30,7 +30,14 @@ urlpatterns = [
     path("nrps/test/", views.nrps_test, name="nrps_test"),
 
 
-    # # Debug helpers
-    # path("test_set/", views.test_set_cookie),
-    # path("test_read/", views.test_read_cookie),
+    # Viva session
+    path("viva/start/<int:submission_id>/", views.viva_start, name="viva_start"),
+    path("viva/session/<int:session_id>/", views.viva_session, name="viva_session"),
+    path("viva/send/", views.viva_send_message, name="viva_send_message"),
+    path("viva/log/", views.viva_log_event, name="viva_log_event"),
+    path("viva/summary/<int:session_id>/", views.viva_summary, name="viva_summary"),
+    path("viva/logs/<int:session_id>/", views.viva_logs, name="viva_logs"),
+
+
+
 ]

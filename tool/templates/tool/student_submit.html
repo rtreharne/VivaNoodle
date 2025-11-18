@@ -29,6 +29,24 @@
 <p>You haven't submitted anything yet.</p>
 {% endif %}
 
+{% if latest_submission and latest_submission.comment %}
+<div class="card">
+    <h3>Viva Examination</h3>
+
+    {% if latest_submission.vivasession %}
+        <p>Your viva session is already created.</p>
+        <a class="button" href="{% url 'viva_session' latest_submission.vivasession.id %}">
+            Resume Viva
+        </a>
+    {% else %}
+        <p>When you are ready, begin your viva examination.</p>
+        <a class="button" href="{% url 'viva_start' latest_submission.id %}">
+            Start Viva
+        </a>
+    {% endif %}
+</div>
+{% endif %}
+
 
 <!-- ========================================================= -->
 <!-- Can student resubmit?                                     -->
