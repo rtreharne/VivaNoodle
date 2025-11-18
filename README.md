@@ -1,4 +1,4 @@
-# 🍜VivaNoodle
+# 🍜 VivaNoodle
 ### AI-powered viva/oral assessment for any LTI-enabled LMS
 
 VivaNoodle is a next-generation assessment tool that brings authentic viva-style oral examinations into any Learning Management System that supports **LTI 1.3**.
