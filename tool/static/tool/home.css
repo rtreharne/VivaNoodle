@@ -1,0 +1,363 @@
+/* ----------------------------------------------------
+   BASE STYLE
+---------------------------------------------------- */
+body {
+    margin: 0;
+    font-family: "Inter", system-ui, Arial, sans-serif;
+    color: #1d1d1d;
+    background: #fafafa;
+    line-height: 1.6;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    margin: 0;
+}
+
+/* ----------------------------------------------------
+   NAVBAR
+---------------------------------------------------- */
+.nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-left {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #4A4AFF;
+}
+
+.nav-right a {
+    margin-left: 20px;
+    text-decoration: none;
+    color: #444;
+    font-weight: 500;
+}
+
+.nav-right a:hover {
+    color: #000;
+}
+
+/* ----------------------------------------------------
+   HERO
+---------------------------------------------------- */
+.hero {
+    padding: 140px 20px;
+    text-align: center;
+    background: linear-gradient(180deg, #ffffff 0%, #f1f2ff 100%);
+}
+
+.hero-content {
+    max-width: 760px;
+    margin: auto;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+
+.hero p {
+    font-size: 1.25rem;
+    color: #444;
+    margin-bottom: 35px;
+}
+
+.cta-button {
+    padding: 14px 28px;
+    background: #4A4AFF;
+    color: #fff;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.cta-button:hover {
+    background: #3a3ae0;
+}
+
+/* ----------------------------------------------------
+   SECTIONS
+---------------------------------------------------- */
+.section {
+    padding: 80px 40px;
+    text-align: center;
+}
+
+.section-text {
+    max-width: 760px;
+    margin: 20px auto 40px;
+    color: #555;
+}
+
+.small {
+    font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------
+   CARDS / FEATURES
+---------------------------------------------------- */
+.feature-grid {
+    display: grid;
+    gap: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    margin-top: 40px;
+}
+
+.feature-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+    text-align: left;
+    border: 1px solid #f0f0f0;
+}
+
+/* ----------------------------------------------------
+   INTEGRATION LIST
+---------------------------------------------------- */
+.integration-list {
+    list-style: none;
+    padding: 0;
+    margin: 35px auto 25px;
+    font-size: 1.2rem;
+}
+
+.integration-list li {
+    padding: 6px 0;
+}
+
+/* ----------------------------------------------------
+   COLLABORATION CTA
+---------------------------------------------------- */
+.cta-secondary {
+    padding: 12px 26px;
+    border-radius: 8px;
+    border: 2px solid #4A4AFF;
+    color: #4A4AFF;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.cta-secondary:hover {
+    background: #4A4AFF;
+    color: #fff;
+}
+
+/* ----------------------------------------------------
+   FOOTER
+---------------------------------------------------- */
+.footer {
+    padding: 40px;
+    text-align: center;
+    color: #555;
+    font-size: 0.9rem;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+/* ----------------------------------------------------
+   HOW IT WORKS
+---------------------------------------------------- */
+.how-it-works {
+    background: #fff;
+    padding-top: 60px;
+}
+
+.how-grid {
+    display: grid;
+    gap: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    margin-top: 40px;
+}
+
+.how-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 26px;
+    text-align: left;
+    border: 1px solid #eee;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+
+.how-number {
+    width: 38px;
+    height: 38px;
+    background: #4A4AFF;
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+
+
+/* ----------------------------------------------------
+   MOCKUP CHAT UI
+---------------------------------------------------- */
+.mockup-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+}
+
+.mockup-box {
+    width: 100%;
+    max-width: 520px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+/* Timer */
+.mockup-timer {
+    background: #4A4AFF;
+    color: #fff;
+    padding: 12px 16px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* Chat area */
+.mockup-chat {
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.mockup-bubble {
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    max-width: 75%;
+    line-height: 1.4;
+}
+
+/* Left alignment for AI */
+.mockup-bubble.ai {
+    background: #f1f2ff;
+    color: #333;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+/* Right alignment for student */
+.mockup-bubble.user {
+    background: #eaeaea;
+    color: #333;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+
+/* Message input */
+.mockup-input {
+    border-top: 1px solid #eee;
+    padding: 12px;
+    background: #fafafa;
+}
+
+.mockup-input input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 0.95rem;
+    background: #f4f4f4;
+}
+
+/* ----------------------------------------------------
+   MOCKUP INPUT BAR REFINEMENT
+---------------------------------------------------- */
+.mockup-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid #eee;
+    padding: 12px;
+    background: #fafafa;
+}
+
+.mockup-input input {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 0.95rem;
+    background: #f4f4f4;
+}
+
+.mockup-input button {
+    padding: 10px 18px;
+    background: #4A4AFF;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: not-allowed; /* because it's a mockup */
+    opacity: 0.6; /* show it's disabled */
+}
+
+/* Force chat bubbles to be left-aligned */
+.mockup-bubble {
+    text-align: left !important;
+}
+
+/* ----------------------------------------------------
+   SPOTLIGHT SECTION (used for WHY)
+---------------------------------------------------- */
+.spotlight {
+    background: #ffffff;
+    padding: 100px 40px;
+    border-top: 1px solid #e1e1e1;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.spotlight h2 {
+    font-size: 2.2rem;
+    margin-bottom: 16px;
+    color: #1a1a1a;
+}
+
+.spotlight .section-text {
+    font-size: 1.15rem;
+    color: #444;
+    max-width: 720px;
+}
+
+.spotlight .feature-grid {
+    margin-top: 50px;
+}
+
+.spotlight .feature-card {
+    border: 1px solid #eaeaea;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+}
+
+/* ----------------------------------------------------
+   ALTERNATING SECTION BACKGROUNDS
+---------------------------------------------------- */
+.alt-bg {
+    background: #f5f6fa;
+}
+

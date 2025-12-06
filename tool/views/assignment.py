@@ -1,7 +1,10 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission
+from ..models import Assignment, Submission, VivaMessage, VivaSession
+from datetime import datetime
+from .viva import compute_integrity_flags
+
 
 def assignment_edit(request):
     roles = request.session.get("lti_roles", [])
@@ -25,13 +28,10 @@ def assignment_edit_save(request):
     resource_link_id = request.session.get("lti_resource_link_id")
     assignment = Assignment.objects.get(slug=resource_link_id)
 
-    # -------------------------------------
-    # Basic fields
-    # -------------------------------------
-    assignment.title = request.POST.get("title", assignment.title)
+    # Basic text fields
     assignment.description = request.POST.get("description", assignment.description)
 
-    # Checkbox fix: HTML checkboxes send "on" when checked
+    # Checkbox: HTML sends "on" when checked
     assignment.allow_multiple_submissions = (
         request.POST.get("allow_multiple") == "on"
     )
@@ -41,12 +41,14 @@ def assignment_edit_save(request):
     if duration and duration.isdigit():
         assignment.viva_duration_seconds = int(duration)
 
-    # -------------------------------------
-    # NEW: Viva customisation fields
-    # -------------------------------------
+    # Viva instructions & notes
     assignment.viva_instructions = request.POST.get("viva_instructions", "")
-    assignment.rubric_text = request.POST.get("rubric_text", "")
     assignment.instructor_notes = request.POST.get("instructor_notes", "")
+
+    # New tracking fields
+    assignment.keystroke_tracking = (request.POST.get("keystroke_tracking") == "on")
+    assignment.event_tracking = (request.POST.get("event_tracking") == "on")
+    assignment.arrhythmic_typing = (request.POST.get("arrhythmic_typing") == "on")
 
     assignment.save()
 
@@ -94,13 +96,38 @@ def assignment_view(request):
         nrps_url = request.session.get("nrps_url")
         roster = fetch_nrps_roster(nrps_url) if nrps_url else []
 
+        # Build sortable_name if missing
+        for m in roster:
+            given = m.get("given_name", "").strip()
+            family = m.get("family_name", "").strip()
+
+            if family or given:
+                m["sortable_name"] = f"{family}, {given}".strip(", ")
+            else:
+                # fallback to Canvas 'name'
+                m["sortable_name"] = m.get("name", "")
+        
+        roster = sorted(roster, key=lambda m: m["sortable_name"].lower())
+
+
+
         submission_map = {s.user_id: s for s in submissions}
+
+        # Build flag_map: { user_id: [flags...] }
+        flag_map = {}
+        for sub in submissions:
+            try:
+                session = sub.vivasession
+                flag_map[sub.user_id] = compute_integrity_flags(session)
+            except VivaSession.DoesNotExist:
+                flag_map[sub.user_id] = []
 
         return render(request, "tool/instructor_review.html", {
             "assignment": assignment,
             "submissions": submissions,
             "roster": roster,
             "submission_map": submission_map,
+            "flag_map": flag_map,
         })
 
     # --------------------------------------------------------------

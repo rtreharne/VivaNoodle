@@ -13,15 +13,15 @@ class Assignment(models.Model):
         help_text="Guidance for how the AI should conduct the viva (tone, focus, probing depth, do/don't)."
     )
 
-    rubric_text = models.TextField(
-        blank=True,
-        help_text="Optional marking rubric (never shown to students — used for instructor review and AI summaries)."
-    )
-
     instructor_notes = models.TextField(
         blank=True,
         help_text="Private instructor notes about the assignment or viva. Not visible to students."
     )
+
+    keystroke_tracking = models.BooleanField(default=True)
+    event_tracking = models.BooleanField(default=True)
+    arrhythmic_typing = models.BooleanField(default=True)
+
 
     def __str__(self):
         return self.title
@@ -87,4 +87,24 @@ class ToolConfig(models.Model):
 
     def __str__(self):
         return f"{self.platform} configuration"
+    
+
+class VivaFeedback(models.Model):
+    """
+    Structured qualitative feedback after viva.
+    Students see only academic feedback (no behavioural data).
+    """
+    session = models.OneToOneField(VivaSession, on_delete=models.CASCADE)
+
+    strengths = models.TextField(blank=True)
+    improvements = models.TextField(blank=True)
+    misconceptions = models.TextField(blank=True)
+    impression = models.TextField(blank=True)  # overall academic impression
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Feedback for session {self.session.id}"
+
+
 

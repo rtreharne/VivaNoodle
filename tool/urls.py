@@ -38,6 +38,8 @@ urlpatterns = [
     path("viva/summary/<int:session_id>/", views.viva_summary, name="viva_summary"),
     path("viva/logs/<int:session_id>/", views.viva_logs, name="viva_logs"),
 
+    path("home/", views.home, name="landing_home"),
+
 
 
 ]

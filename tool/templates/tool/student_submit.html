@@ -1,68 +1,66 @@
 {% extends "tool/base.html" %}
 {% block content %}
 
-<h2>{{ assignment.title }}</h2>
+<h2 class="page-heading">{{ assignment.title }}</h2>
 
 <!-- ========================================================= -->
-<!-- Existing Submission                                        -->
+<!--  Latest Submission (single polished card)                  -->
 <!-- ========================================================= -->
 
 {% if latest_submission %}
 <div class="card">
+
     <h3>Your Latest Submission</h3>
 
     <p class="subtle">
         Submitted on {{ latest_submission.created_at|date:"Y-m-d H:i" }}
     </p>
 
-    {% if latest_submission.file %}
-        <p><strong>Uploaded file:</strong> {{ latest_submission.file.name }}</p>
-    {% endif %}
-
     {% if latest_submission.comment %}
-        <pre class="submission-text">{{ latest_submission.comment }}</pre>
-    {% else %}
-        <p class="subtle">Extracting text… (This may take a moment.)</p>
+        <div class="extracted-preview">
+            <p>{{ latest_submission.comment|truncatechars:200 }}</p>
+        </div>
     {% endif %}
-</div>
-{% else %}
-<p>You haven't submitted anything yet.</p>
-{% endif %}
-
-{% if latest_submission and latest_submission.comment %}
-<div class="card">
-    <h3>Viva Examination</h3>
 
     {% if latest_submission.vivasession %}
-        <p>Your viva session is already created.</p>
-        <a class="button" href="{% url 'viva_session' latest_submission.vivasession.id %}">
+        <a class="button primary" href="{% url 'viva_session' latest_submission.vivasession.id %}">
             Resume Viva
         </a>
     {% else %}
         <p>When you are ready, begin your viva examination.</p>
-        <a class="button" href="{% url 'viva_start' latest_submission.id %}">
-            Start Viva
+        <a class="button primary" href="{% url 'viva_start' latest_submission.id %}">
+            Begin Viva
         </a>
     {% endif %}
+
+
+
 </div>
+{% else %}
+
+<p>You haven't submitted anything yet.</p>
+
 {% endif %}
 
 
 <!-- ========================================================= -->
-<!-- Can student resubmit?                                     -->
+<!--   Submission Options                                       -->
 <!-- ========================================================= -->
 
 {% if assignment.allow_multiple_submissions or not latest_submission %}
 
 <div class="card">
-
     <h3>Upload Your Work</h3>
     <p class="subtle">Accepted formats: PDF, DOCX, TXT</p>
 
-    <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form">
+    <form action="{% url 'submit_file' %}" method="POST"
+          enctype="multipart/form-data" class="submission-form">
         {% csrf_token %}
-        <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" required>
-        <button type="submit" class="button" style="margin-top: 15px;">Upload File</button>
+        <input type="file" id="file" name="file"
+               accept=".pdf,.docx,.txt" required>
+        <button type="submit" class="button" style="margin-top: 15px;">
+            Upload File
+        </button>
     </form>
 </div>
 
@@ -72,16 +70,18 @@
     <form action="{% url 'submit_text' %}" method="POST" class="submission-form">
         {% csrf_token %}
         <textarea id="text" name="text" rows="8" required></textarea>
-        <button type="submit" class="button" style="margin-top: 15px;">Submit Text</button>
+        <button type="submit" class="button" style="margin-top: 15px;">
+            Submit Text
+        </button>
     </form>
 </div>
 
 {% else %}
-
 <p class="locked-msg">
     This assignment allows only one submission, and you have already submitted your work.
 </p>
-
 {% endif %}
+
+
 
 {% endblock %}

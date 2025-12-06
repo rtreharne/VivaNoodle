@@ -5,74 +5,140 @@
 
 <h2>{{ assignment.title }}</h2>
 
-<!-- Edit Assignment Button -->
-<div class="button-group" style="margin-bottom: 20px;">
-    <a href="{% url 'assignment_edit' %}" class="button primary">
-        Edit Assignment
-    </a>
+<div class="button-group mb-20">
+    <a href="{% url 'assignment_edit' %}" class="button primary">Edit Assignment</a>
 </div>
 
-<div class="card">
-    <h3>Student Submissions</h3>
+<h3>Submissions</h3>
+
+<!-- Filter Button -->
+<div class="vn-filter-controls">
+    <button id="toggleFlaggedBtn"
+            class="button small vn-flag-filter-btn"
+            data-mode="all">
+        Show Flagged Only
+    </button>
+</div>
+
+<div class="card full-width">
 
     {% if roster %}
-    <table style="width:100%; border-collapse: collapse;">
+    <table class="vn-table full">
+
         <thead>
-            <tr style="text-align:left; border-bottom:1px solid #ccc;">
-                <th style="padding:8px;">Student</th>
-                <th style="padding:8px;">Status</th>
-                <th style="padding:8px;">View</th>
+            <tr>
+                <th>Student</th>
+                <th>Status</th>
+                <th>Flags</th>
+                <th>View</th>
             </tr>
         </thead>
 
         <tbody>
+        {% for member in roster %}
+            {% if "learner" in member.roles|join:","|lower %}
 
-            {% for member in roster %}
+                {% with uid=member.user_id %}
+                {% with sub=submission_map|dict_get:uid %}
+                {% with flags=flag_map|dict_get:uid %}
 
-                {# Only show actual enrolled students #}
-                {% if "learner" in member.roles|join:","|lower %}
+                <tr class="submission-row"
+                    data-flagged="{% if flags %}true{% else %}false{% endif %}">
 
-                    {% with uid=member.user_id %}
-                    {% with sub=submission_map|dict_get:uid %}
+                    <!-- Student name -->
+                    <td>{{ member.sortable_name }}</td>
 
-                    <tr style="border-bottom:1px solid #eee;">
-                        <td style="padding:8px;">{{ member.name }}</td>
+                    <!-- Submission status -->
+                    {% if sub %}
+                        <td class="submitted">
+                            Submitted ({{ sub.created_at|date:"Y-m-d H:i" }})
+                        </td>
+                    {% else %}
+                        <td class="not-submitted">
+                            Not Submitted
+                        </td>
+                    {% endif %}
 
-                        {% if sub %}
-                            <td style="padding:8px; color:green; font-weight:600;">
-                                Submitted ({{ sub.created_at|date:"Y-m-d H:i" }})
-                            </td>
-                            <td style="padding:8px;">
-                                <a href="{% url 'submission_status' sub.id %}" class="button">View</a>
-
-                                {% if sub.vivasession %}
-                                    <a href="{% url 'viva_summary' sub.vivasession.id %}" class="button" style="margin-left:8px;">
-                                        Viva
-                                    </a>
-                                {% endif %}
-                            </td>
-
+                    <!-- Flags -->
+                    <td>
+                        {% if sub and sub.vivasession %}
+                            {% if flags %}
+                                <span class="flag-icon" data-tip="{{ flags|join:'\n' }}">
+                                    🚩
+                                </span>
+                            {% else %}
+                                <span class="no-flag">—</span>
+                            {% endif %}
                         {% else %}
-                            <td style="padding:8px; color:red;">
-                                Not Submitted
-                            </td>
-                            <td style="padding:8px;">–</td>
+                            <span class="no-flag">—</span>
                         {% endif %}
-                    </tr>
+                    </td>
 
-                    {% endwith %}
-                    {% endwith %}
+                    <!-- View buttons -->
+                    <td>
+                        {% if sub %}
+                            <a href="{% url 'submission_status' sub.id %}" class="button small">
+                                View
+                            </a>
 
-                {% endif %}
+                            {% if sub.vivasession %}
+                                <a href="{% url 'viva_summary' sub.vivasession.id %}"
+                                   class="button small ml-6">
+                                    Viva
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
 
-            {% endfor %}
+                </tr>
 
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
+
+            {% endif %}
+        {% endfor %}
         </tbody>
+
     </table>
 
     {% else %}
         <p>No roster data available.</p>
     {% endif %}
+
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const btn = document.getElementById("toggleFlaggedBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", function () {
+        const showOnly = (this.dataset.mode !== "flagged");
+        const rows = document.querySelectorAll(".submission-row");
+
+        rows.forEach(row => {
+            const flagged = row.dataset.flagged === "true";
+            row.style.display = (showOnly && !flagged) ? "none" : "";
+        });
+
+        if (showOnly) {
+            this.textContent = "Show All Students";
+            this.dataset.mode = "flagged";
+            this.classList.add("vn-active");
+        } else {
+            this.textContent = "Show Flagged Only";
+            this.dataset.mode = "all";
+            this.classList.remove("vn-active");
+        }
+    });
+
+});
+</script>
 {% endblock %}

@@ -1,0 +1,280 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VivaNoodle – Authentic Assessment for the AI Era</title>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}">
+    <script defer src="{% static 'tool/home.js' %}"></script>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<header class="nav">
+    <div class="nav-left">VivaNoodle</div>
+    <nav class="nav-right">
+        <a href="#mockup">Viva</a>
+        <a href="#how-it-works">How</a>
+        <a href="#why">Why</a>
+        <a href="#security">Trust</a>
+        <a href="#features">Features</a>
+    </nav>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-content">
+        <h1>Authentic Assessment for the AI Era</h1>
+        <p>
+            VivaNoodle delivers secure, scalable, AI-supported oral examinations directly inside your VLE.
+            Designed for universities that want to maintain academic integrity without policing or surveillance.
+        </p>
+        <a href="#mockup" class="cta-button">See the Viva</a>
+    </div>
+</section>
+
+<!-- PRODUCT MOCKUP -->
+<section id="mockup" class="section spotlight">
+    <h2>What a Viva Looks Like</h2>
+
+    <p class="section-text">
+        A structured, text-based viva delivered through a clean chat interface.
+        The AI asks outcome-aligned questions based on the student's submitted work.
+    </p>
+
+    <div class="mockup-container">
+        <div class="mockup-box">
+
+            <!-- Timer -->
+            <div class="mockup-timer">
+                <span>Time Remaining: 08:15</span>
+            </div>
+
+            <!-- Chat bubbles -->
+            <div class="mockup-chat">
+
+                <div class="mockup-bubble ai">
+                    In your essay you argue that rewilding improves ecological resilience. 
+                    What specific mechanisms support that claim?
+                </div>
+
+                <div class="mockup-bubble user">
+                    One mechanism is trophic cascade restoration. For example, reintroducing predators 
+                    helps regulate herbivore populations, which reduces overgrazing.
+                </div>
+
+                <div class="mockup-bubble ai">
+                    That’s a good start. Could you explain how those cascading effects contribute 
+                    to long-term ecosystem stability?
+                </div>
+
+                <div class="mockup-bubble user">
+                    By balancing population sizes, vegetation recovers, which stabilises soil and 
+                    increases biodiversity. This makes the system more resilient to shocks.
+                </div>
+
+                <div class="mockup-bubble ai">
+                    What do you consider the strongest counter-argument against rewilding 
+                    in densely populated regions of the UK?
+                </div>
+
+                <div class="mockup-bubble user">
+                    Probably concerns about land-use conflict — especially where communities rely 
+                    on intensive agriculture or livestock grazing.
+                </div>
+
+            </div>
+
+            <!-- Message input -->
+            <div class="mockup-input">
+                <input type="text" placeholder="Type your response…" disabled>
+                <button disabled>Send</button>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" class="section how-it-works alt-bg">
+    <h2>How VivaNoodle Works</h2>
+
+    <div class="how-grid">
+
+        <div class="how-card">
+            <div class="how-number">1</div>
+            <h3>Instructor Creates Assignment</h3>
+            <p>
+                Instructors configure the Viva directly inside the VLE — defining learning outcomes, tone, 
+                transparency settings, and viva duration.
+            </p>
+        </div>
+
+        <div class="how-card">
+            <div class="how-number">2</div>
+            <h3>Student Submits Their Work</h3>
+            <p>
+                Students upload or enter their assignment materials as normal, forming the basis for the
+                ensuing viva conversation.
+            </p>
+        </div>
+
+        <div class="how-card">
+            <div class="how-number">3</div>
+            <h3>Student Completes the Viva</h3>
+            <p>
+                VivaNoodle guides the student through a structured <strong>text-based</strong> viva — a chat-style 
+                conversation that probes the reasoning behind their work. No video calls or scheduling needed.
+            </p>
+        </div>
+
+        <div class="how-card">
+            <div class="how-number">4</div>
+            <h3>Qualitative Feedback</h3>
+            <p>
+                Students receive strengths, misconceptions, and actionable guidance.  
+                Staff receive the full conversation, integrity indicators, and summary insights.
+            </p>
+        </div>
+
+    </div>
+</section>
+
+<!-- WHY -->
+<section id="why" class="section spotlight">
+    <h2>The Challenge Facing Higher Education</h2>
+    <p class="section-text">
+        Generative AI has fundamentally changed how students produce text. Traditional take-home assessments
+        no longer give instructors confidence that submitted work reflects student understanding.  
+        VivaNoodle offers a constructive way forward.
+    </p>
+
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>Authenticity by Design</h3>
+            <p>
+                AI-aware vivas evaluate real reasoning, not polished output. 
+                Meaningful explanations cannot be faked by automated tools.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Fairness & Transparency</h3>
+            <p>
+                Students receive actionable, qualitative feedback.
+                No hidden scores. No black-box detection tools.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Signals for Academic Judgement</h3>
+            <p>
+                Focus shifts, paste events, typing rhythm and timing patterns help contextualise performance 
+                without intrusive surveillance.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Scalable & Consistent</h3>
+            <p>
+                Replicate the quality of a traditional viva across large cohorts.
+                Consistent tone, depth, and questioning — every time.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- SECURITY & CREDIBILITY -->
+<section id="security" class="section alt-bg">
+    <h2>Designed for Trust, Security, and Institutional Compliance</h2>
+
+    <p class="section-text">
+        VivaNoodle is built specifically for universities. It runs entirely inside your VLE 
+        and follows strict principles of privacy, transparency, and data minimisation.
+    </p>
+
+    <div class="feature-grid">
+
+        <div class="feature-card">
+            <h3>LTI 1.3 Compliant</h3>
+            <p>
+                Fully standards-based. No custom integrations required. Works with Canvas, 
+                Blackboard Ultra, Moodle, Brightspace, and Sakai.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>No Student Accounts</h3>
+            <p>
+                Students access the viva directly through the VLE. No external logins, 
+                no identity duplication, no data leakage.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Data Minimisation</h3>
+            <p>
+                Only the viva transcript, behavioural indicators, and assignment configuration 
+                are stored. No audio, video, biometric, or device information.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Transparent by Design</h3>
+            <p>
+                Students are clearly informed about what is recorded and why.  
+                Institutions control transparency settings for each assignment.
+            </p>
+        </div>
+
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" class="features section spotlight">
+    <h2>What VivaNoodle Provides</h2>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>Guided AI Conversations</h3>
+            <p>
+                Students engage in an adaptive viva aligned with instructor-defined learning outcomes.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Integrity Indicators</h3>
+            <p>
+                Behavioural event tracking supports academic judgement with additional contextual insight.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <h3>Rich Qualitative Feedback</h3>
+            <p>
+                Students receive strengths, misconceptions, and developmental advice they can actually use.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- CONTACT CTA -->
+<section id="contact" class="section alt-bg">
+    <h2>Interested in VivaNoodle?</h2>
+
+    <p class="section-text">
+        VivaNoodle is partnering with universities to explore authentic assessment, 
+        AI-supported viva formats, and new assessment strategies. 
+    </p>
+
+    <a href="#" class="cta-secondary">
+        Register Interest
+    </a>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+    <p>© {{ now|date:"Y" }} VivaNoodle. Reinventing assessment for the AI age.</p>
+</footer>
+
+</body>
+</html>

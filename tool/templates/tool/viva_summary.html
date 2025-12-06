@@ -32,6 +32,33 @@
     </a>
 </div>
 
+{% if feedback %}
+<div id="feedbackContainer" class="card" style="margin-top:20px;">
+    <h3>Qualitative Feedback</h3>
+
+    <h4>Strengths</h4>
+    <p>{{ feedback.strengths }}</p>
+
+    <h4>Areas for Improvement</h4>
+    <p>{{ feedback.improvements }}</p>
+
+    <h4>Misconceptions Identified</h4>
+    <p>{{ feedback.misconceptions }}</p>
+
+    <h4>Overall Academic Impression</h4>
+    <p>{{ feedback.impression }}</p>
+</div>
+{% else %}
+<div id="feedbackContainer" class="card" style="margin-top:20px; text-align:center;">
+    <h3>Qualitative Feedback</h3>
+
+    <div id="feedbackSpinner" style="padding:20px;">
+        <div class="loader"></div>
+        <p style="margin-top:10px;">Generating feedback…</p>
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <h3>Transcript</h3>
 
@@ -54,3 +81,46 @@
 <a href="{% url 'assignment_view' %}" class="button">Return to Assignment</a>
 
 {% endblock %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const feedbackContainer = document.getElementById("feedbackContainer");
+    const spinner = document.getElementById("feedbackSpinner");
+
+    // If feedback already present → do nothing
+    if (!spinner) return;
+
+    function pollFeedback() {
+        fetch("?poll=1")
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ready) {
+                    setTimeout(pollFeedback, 2000);
+                    return;
+                }
+
+                // Replace spinner with actual feedback
+                spinner.style.display = "none";
+
+                feedbackContainer.innerHTML = `
+                    <h3>Qualitative Feedback</h3>
+
+                    <h4>Strengths</h4>
+                    <p>${data.strengths}</p>
+
+                    <h4>Areas for Improvement</h4>
+                    <p>${data.improvements}</p>
+
+                    <h4>Misconceptions Identified</h4>
+                    <p>${data.misconceptions}</p>
+
+                    <h4>Overall Academic Impression</h4>
+                    <p>${data.impression}</p>
+                `;
+            });
+    }
+
+    pollFeedback();
+});
+</script>
+

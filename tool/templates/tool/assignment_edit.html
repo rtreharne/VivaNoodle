@@ -21,7 +21,7 @@
             <textarea id="description" name="description" rows="4">{{ assignment.description }}</textarea>
         </div>
 
-        <!-- CHECKBOX -->
+        <!-- MULTIPLE SUBMISSIONS -->
         <div class="form-row">
             <label for="allow_multiple">Multiple Submissions</label>
             <div class="checkbox-wrapper">
@@ -38,19 +38,47 @@
                    type="number" min="60" value="{{ assignment.viva_duration_seconds }}">
         </div>
 
+        <!-- NEW SETTINGS: TRACKING -------------------------------------------------------- -->
+
+        <h3 style="margin-top: 30px; margin-bottom: 10px;">Tracking Settings</h3>
+
+        <!-- Keystroke Tracking -->
+        <div class="form-row">
+            <label for="keystroke_tracking">Keystroke Tracking</label>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="keystroke_tracking" name="keystroke_tracking"
+                       {% if assignment.keystroke_tracking|default:True %}checked{% endif %}>
+                <span>Log all keypress activity during the viva</span>
+            </div>
+        </div>
+
+        <!-- Event Tracking -->
+        <div class="form-row">
+            <label for="event_tracking">Event Tracking</label>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="event_tracking" name="event_tracking"
+                       {% if assignment.event_tracking|default:True %}checked{% endif %}>
+                <span>Track paste, copy, cut, blur, and focus events</span>
+            </div>
+        </div>
+
+        <!-- Arrhythmic Typing -->
+        <div class="form-row">
+            <label for="arrhythmic_typing">Arrhythmic Typing Detection</label>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="arrhythmic_typing" name="arrhythmic_typing"
+                       {% if assignment.arrhythmic_typing|default:True %}checked{% endif %}>
+                <span>Detect suspicious typing patterns (e.g., rapid alternating speed)</span>
+            </div>
+            <div class="help">Used only for behavioural integrity analysis.</div>
+        </div>
+
         <!-- VIVA INSTRUCTIONS -->
         <div class="form-row">
             <label for="viva_instructions">Viva Instructions</label>
             <textarea id="viva_instructions" name="viva_instructions" rows="6"
             placeholder="How should the AI conduct the viva? (tone, strictness, what to probe, what to avoid, discipline-specific norms)">{{ assignment.viva_instructions }}</textarea>
             <div class="help">These instructions directly influence how the AI questions the student.</div>
-        </div>
-
-        <!-- RUBRIC -->
-        <div class="form-row">
-            <label for="rubric_text">Marking Rubric</label>
-            <textarea id="rubric_text" name="rubric_text" rows="6"
-            placeholder="Internal rubric for instructor use and AI summary generation. Not visible to students.">{{ assignment.rubric_text }}</textarea>
         </div>
 
         <!-- INSTRUCTOR NOTES -->

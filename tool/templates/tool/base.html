@@ -5,26 +5,60 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}VivaNoodle{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'tool/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'tool/style.css' %}?v={{ time|date:'U' }}">
 </head>
 
 <body>
 
-<header>
-    <div class="logo">
+<header class="vn-header">
+    <div class="logo-wrap">
         <span class="logo-emoji">🍜</span>
-        VivaNoodle
+        <span class="logo-text">VivaNoodle</span>
     </div>
     <div class="subtitle">{% block subtitle %}{% endblock %}</div>
 </header>
+
 
 <div class="container">
     {% block content %}{% endblock %}
 </div>
 
+
+
 <footer>
     © {{ year }} VivaNoodle — All Rights Reserved
 </footer>
+
+{% block scripts %}{% endblock %}
+
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const tips = document.querySelectorAll("[data-tip]");
+
+    tips.forEach(el => {
+        el.addEventListener("mouseenter", () => {
+            const tip = document.createElement("div");
+            tip.className = "vn-tooltip";
+            tip.textContent = el.dataset.tip;
+            document.body.appendChild(tip);
+
+            const rect = el.getBoundingClientRect();
+            tip.style.left = rect.left + window.scrollX + "px";
+            tip.style.top = rect.bottom + window.scrollY + 5 + "px";
+
+            el._tooltip = tip;
+        });
+
+        el.addEventListener("mouseleave", () => {
+            if (el._tooltip) {
+                el._tooltip.remove();
+                el._tooltip = null;
+            }
+        });
+    });
+});
+</script>
 
 </body>
 </html>

@@ -90,6 +90,7 @@ def fetch_nrps_roster(nrps_url):
 
     try:
         data = members_resp.json()
+        print(data)
         return data.get("members", [])
     except:
         print("DEBUG: JSON ERROR - returning None")

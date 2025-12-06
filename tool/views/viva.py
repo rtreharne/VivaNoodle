@@ -1,6 +1,19 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponseBadRequest
-from tool.models import Submission, VivaSession, VivaMessage, InteractionLog
+from django.utils.timezone import now
+from django.utils import timezone
+from openai import OpenAI
+import json
+
+from tool.models import (
+    Submission,
+    VivaSession,
+    VivaMessage,
+    InteractionLog,
+    VivaFeedback,
+)
+
+client = OpenAI()
 
 # ---------------------------------------------------------
 # Start a viva session
@@ -11,43 +24,30 @@ def viva_start(request, submission_id):
     except Submission.DoesNotExist:
         return HttpResponseBadRequest("Invalid submission ID")
 
-    session, created = VivaSession.objects.get_or_create(submission=sub)
-
+    session, _ = VivaSession.objects.get_or_create(submission=sub)
     return redirect("viva_session", session_id=session.id)
 
 
 # ---------------------------------------------------------
-# Show viva chat UI (empty for now)
+# Viva UI (or polling)
 # ---------------------------------------------------------
-from django.http import JsonResponse, HttpResponseBadRequest
-from django.utils.timezone import now
-from tool.models import VivaSession, VivaMessage
-
 def viva_session(request, session_id):
     try:
         session = VivaSession.objects.get(id=session_id)
     except VivaSession.DoesNotExist:
         return HttpResponseBadRequest("Invalid viva session ID")
 
-    # ---------------------------------------------------------
-    # POLL MODE — return latest messages only
-    # ---------------------------------------------------------
+    # ------------------ POLL MODE ------------------
     if request.GET.get("poll") == "1":
         msgs = VivaMessage.objects.filter(session=session).order_by("timestamp")
         return JsonResponse({
-            "messages": [
-                {"sender": m.sender, "text": m.text}
-                for m in msgs
-            ]
+            "messages": [{"sender": m.sender, "text": m.text} for m in msgs]
         })
 
-    # ---------------------------------------------------------
-    # NORMAL PAGE LOAD — calculate remaining time
-    # ---------------------------------------------------------
+    # ------------------ NORMAL RENDER ------------------
     started_at = session.started_at
     elapsed = (now() - started_at).total_seconds()
 
-    # Per-assignment configured duration
     assignment = session.submission.assignment
     duration = assignment.viva_duration_seconds
 
@@ -58,33 +58,24 @@ def viva_session(request, session_id):
         "session": session,
         "remaining_seconds": remaining,
         "viva_ended": viva_ended,
+        "time": timezone.now(),
     })
 
 
-
-
 # ---------------------------------------------------------
-# Student sends a message (stub)
+# SEND MESSAGE (student or start signal)
 # ---------------------------------------------------------
-import json
-
 def viva_send_message(request):
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
 
-    # ------------------------------------------------------------
-    # Parse request JSON
-    # ------------------------------------------------------------
     payload = json.loads(request.body.decode("utf-8"))
     session_id = payload.get("session_id")
     text = payload.get("text", "").strip()
 
-    if not session_id or text is None:
-        return HttpResponseBadRequest("Missing fields")
+    if not session_id:
+        return HttpResponseBadRequest("Missing session_id")
 
-    # ------------------------------------------------------------
-    # Load VivaSession and Assignment
-    # ------------------------------------------------------------
     try:
         session = VivaSession.objects.get(id=session_id)
     except VivaSession.DoesNotExist:
@@ -92,127 +83,97 @@ def viva_send_message(request):
 
     assignment = session.submission.assignment
 
-    # We save __start__ to DB to keep the sequence intact,
-    # but we will NOT show it in the UI.
-    VivaMessage.objects.create(
-        session=session,
-        sender="student",
-        text=text
-    )
+    # --------------------------------------------------
+    # Special case: "__start__"
+    # --------------------------------------------------
+    if text == "__start__":
+        # Do NOT save student message
+        pass
+    else:
+        if not text:
+            return HttpResponseBadRequest("Missing message text")
 
-    # ------------------------------------------------------------
-    # Build system prompt with instructor customisation
-    # ------------------------------------------------------------
+        VivaMessage.objects.create(
+            session=session,
+            sender="student",
+            text=text
+        )
+
+    # --------------------------------------------------
+    # Build context for GPT
+    # --------------------------------------------------
+    submission_text = session.submission.comment[:8000]
+
     system_prompt = (
         "You are an academic tutor conducting a viva voce examination.\n"
-        "Your job is to probe the student's understanding of their submitted work.\n"
         "Ask clear, concise, probing questions.\n"
         "Ask only ONE question at a time.\n"
-        "Do NOT explain answers.\n"
+        "Do NOT give answers or explanations.\n"
         "Do NOT help the student.\n"
-        "Do NOT reveal new information.\n"
         "Only ask questions.\n"
-        "\n"
     )
 
-    # Insert instructor viva instructions (optional)
     if assignment.viva_instructions:
         system_prompt += (
-            "Instructor Viva Instructions:\n"
-            f"{assignment.viva_instructions}\n\n"
+            "\nInstructor Instructions:\n"
+            f"{assignment.viva_instructions}\n"
         )
 
-    # Insert rubric (internal-only context for AI)
-    if assignment.rubric_text:
-        system_prompt += (
-            "Marking Rubric (do NOT reveal to the student):\n"
-            f"{assignment.rubric_text}\n\n"
-        )
-
-    # Instructor notes are NEVER used — not even as AI context
-    # (they are private to instructor only)
-
-    # ------------------------------------------------------------
-    # Build messages for OpenAI
-    # ------------------------------------------------------------
-    submission_text = session.submission.comment[:8000]  # safety cap
-
-    messages = [
+    messages_for_model = [
         {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": (
-                "Here is the student's submitted work. Use this only as context, "
-                "and ask questions about the reasoning, methods, decisions, and understanding.\n\n"
-                f"{submission_text}"
-            )
-        }
+        {"role": "user",
+         "content": (
+            "Here is the student's submitted work:\n\n"
+            f"{submission_text}\n\n"
+            "Ask only questions that probe their reasoning or understanding."
+         )},
     ]
 
-    # Include conversation history (except hiding __start__)
     history = VivaMessage.objects.filter(session=session).order_by("timestamp")
 
     for msg in history:
         if msg.sender == "student":
             if msg.text == "__start__":
-                # Do not include "__start__" as content — but keep sequence intact
                 continue
-            messages.append({"role": "user", "content": msg.text})
+            messages_for_model.append({"role": "user", "content": msg.text})
         else:
-            messages.append({"role": "assistant", "content": msg.text})
+            messages_for_model.append({"role": "assistant", "content": msg.text})
 
-    # ------------------------------------------------------------
-    # If __start__, do NOT let AI see it as a real message
-    # ------------------------------------------------------------
-    if text == "__start__":
-        # Replace with a neutral kickoff message
-        messages.append({"role": "assistant", "content": ""})
-    else:
-        messages.append({"role": "user", "content": text})
+    # Ensure last user message included unless __start__
+    if text != "__start__":
+        messages_for_model.append({"role": "user", "content": text})
 
-    # ------------------------------------------------------------
-    # Call OpenAI
-    # ------------------------------------------------------------
+    # --------------------------------------------------
+    # Call GPT
+    # --------------------------------------------------
     try:
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=messages,
+            messages=messages_for_model,
             max_tokens=200,
             temperature=0.4,
         )
         ai_reply = completion.choices[0].message.content.strip()
-
-        if not ai_reply:
-            ai_reply = "I have generated an empty response."
-
     except Exception as e:
-        ai_reply = f"[AI error: {str(e)}]"
+        ai_reply = f"[AI error: {e}]"
 
-    # ------------------------------------------------------------
-    # Save AI reply
-    # ------------------------------------------------------------
     VivaMessage.objects.create(
         session=session,
         sender="ai",
         text=ai_reply
     )
 
-    # ------------------------------------------------------------
-    # Respond to frontend
-    # ------------------------------------------------------------
     return JsonResponse({"status": "ok", "message": ai_reply})
 
 
-
 # ---------------------------------------------------------
-# Interaction logs (cut/copy/paste/blur)
+# Behaviour logs & viva_end
 # ---------------------------------------------------------
 def viva_log_event(request):
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
 
     payload = json.loads(request.body.decode("utf-8"))
-
     session_id = payload.get("session_id")
     event_type = payload.get("event_type")
     event_data = payload.get("event_data", {})
@@ -225,9 +186,7 @@ def viva_log_event(request):
     except VivaSession.DoesNotExist:
         return HttpResponseBadRequest("Invalid session")
 
-    # ----------------------------------
-    # Special handling: viva_end event
-    # ----------------------------------
+    # -------------------- END SESSION --------------------
     if event_type == "viva_end":
         if not session.ended_at:
             session.ended_at = now()
@@ -235,168 +194,73 @@ def viva_log_event(request):
                 (session.ended_at - session.started_at).total_seconds()
             )
             session.save()
+
+            try:
+                generate_viva_feedback(session)
+            except Exception as e:
+                print("Error generating viva feedback:", e)
+
         return JsonResponse({"status": "ended"})
 
-    # ----------------------------------
-    # Normal behaviour logging
-    # ----------------------------------
+    # -------------------- NORMAL LOG --------------------
     InteractionLog.objects.create(
         submission=session.submission,
         event_type=event_type,
         event_data=event_data
     )
-
     return JsonResponse({"status": "logged"})
 
 
-
-import json
-from django.http import JsonResponse, HttpResponseBadRequest
-from tool.models import Submission, VivaSession, VivaMessage
-from openai import OpenAI
-
-client = OpenAI()
-
-def viva_send_message(request):
-    if request.method != "POST":
-        return HttpResponseBadRequest("POST only")
-
-    # ------------------------------------
-    # Parse incoming JSON
-    # ------------------------------------
-    payload = json.loads(request.body.decode("utf-8"))
-    session_id = payload.get("session_id")
-    text = payload.get("text", "").strip()
-
-    if not session_id:
-        return HttpResponseBadRequest("Missing session_id")
-
-    # ------------------------------------
-    # Lookup viva session
-    # ------------------------------------
-    try:
-        session = VivaSession.objects.get(id=session_id)
-    except VivaSession.DoesNotExist:
-        return HttpResponseBadRequest("Invalid session ID")
-
-    # ------------------------------------
-    # Special case: "__start__"
-    # Do NOT save a student message.
-    # Instead: generate FIRST AI QUESTION only.
-    # ------------------------------------
-    if text == "__start__":
-        # Proceed directly to AI generation without saving anything
-        student_messages = []
-    else:
-        # Save student message normally
-        if not text:
-            return HttpResponseBadRequest("Missing message text")
-
-        VivaMessage.objects.create(
-            session=session,
-            sender="student",
-            text=text
-        )
-
-    # ------------------------------------
-    # Prepare model context
-    # ------------------------------------
-    submission = session.submission
-    submission_text = submission.comment[:8000]  # safe cap
-
-    # Fetch full chat history (except __start__)
-    history = VivaMessage.objects.filter(session=session).order_by("timestamp")
-    history = list(history)[-6:]  # limit to last 6
-
-    # Build OpenAI messages
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are an academic tutor conducting a viva voce examination.\n"
-                "Ask clear, focused, probing questions to determine whether the student "
-                "understands the work they submitted.\n"
-                "Never reveal answers. Never provide explanations.\n"
-                "Ask one short question at a time.\n"
-            )
-        },
-        {
-            "role": "user",
-            "content": (
-                "Here is the student's submitted work:\n\n"
-                f"{submission_text}\n\n"
-                "Use this work as context. Only ask questions about their work or the reasoning behind it."
-            )
-        }
-    ]
-
-    # History → model prompt
-    for msg in history:
-        messages.append({
-            "role": "user" if msg.sender == "student" else "assistant",
-            "content": msg.text
-        })
-
-    # ------------------------------------
-    # Call OpenAI
-    # ------------------------------------
-    try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            max_tokens=200,
-            temperature=0.4,
-        )
-        ai_reply = completion.choices[0].message.content.strip()
-
-    except Exception as e:
-        ai_reply = f"[AI error: {e}]"
-
-    # ------------------------------------
-    # Save AI message
-    # ------------------------------------
-    VivaMessage.objects.create(
-        session=session,
-        sender="ai",
-        text=ai_reply
-    )
-
-    # ------------------------------------
-    # Return reply to frontend
-    # ------------------------------------
-    return JsonResponse({
-        "status": "ok",
-        "message": ai_reply
-    })
-
-
-
+# ---------------------------------------------------------
+# Feedback summary
+# ---------------------------------------------------------
 def viva_summary(request, session_id):
     try:
         session = VivaSession.objects.get(id=session_id)
     except VivaSession.DoesNotExist:
         return HttpResponseBadRequest("Invalid viva session ID")
 
+    # ---------- AJAX POLL ----------
+    if request.GET.get("poll") == "1":
+        try:
+            fb = session.vivafeedback
+            return JsonResponse({
+                "ready": True,
+                "strengths": fb.strengths,
+                "improvements": fb.improvements,
+                "misconceptions": fb.misconceptions,
+                "impression": fb.impression,
+            })
+        except VivaFeedback.DoesNotExist:
+            return JsonResponse({"ready": False})
+
+    # ---------- NORMAL PAGE ----------
     messages = VivaMessage.objects.filter(session=session).order_by("timestamp")
     flags = compute_integrity_flags(session)
 
+    try:
+        feedback = session.vivafeedback
+    except VivaFeedback.DoesNotExist:
+        feedback = None
 
-    # Compute nice MM:SS duration (None if not finished)
-    formatted_duration = None
+    formatted = None
     if session.duration_seconds:
         mins = session.duration_seconds // 60
         secs = session.duration_seconds % 60
-        formatted_duration = f"{mins:02d}:{secs:02d}"
+        formatted = f"{mins:02d}:{secs:02d}"
 
     return render(request, "tool/viva_summary.html", {
         "session": session,
         "messages": messages,
-        "formatted_duration": formatted_duration,
+        "formatted_duration": formatted,
         "flags": flags,
+        "feedback": feedback,
     })
 
 
-
+# ---------------------------------------------------------
+# Behaviour logs
+# ---------------------------------------------------------
 def viva_logs(request, session_id):
     try:
         session = VivaSession.objects.get(id=session_id)
@@ -413,62 +277,113 @@ def viva_logs(request, session_id):
     })
 
 
+# ---------------------------------------------------------
+# Integrity Flags
+# ---------------------------------------------------------
 def compute_integrity_flags(session):
-    """
-    Generate simple rule-based integrity signals.
-    Returns a list of strings.
-    """
     logs = InteractionLog.objects.filter(
         submission=session.submission
     ).order_by("timestamp")
 
+    assignment = session.submission.assignment
     flags = []
 
-    # Count events
     blur_count = logs.filter(event_type="blur").count()
     paste_logs = logs.filter(event_type="paste")
-    copy_logs = logs.filter(event_type="copy")
-    cut_logs = logs.filter(event_type="cut")
+    msgs = VivaMessage.objects.filter(session=session).order_by("timestamp")
 
-    # -------------------------------
-    # RULE 1: Many blur events
-    # -------------------------------
-    if blur_count >= 3:
-        flags.append(f"Frequent tab/window switching detected ({blur_count} times).")
+    # Blur
+    if assignment.event_tracking and blur_count >= 3:
+        flags.append(f"Frequent tab/window switching ({blur_count}×).")
 
-    # -------------------------------
-    # RULE 2: Any paste events
-    # -------------------------------
-    if paste_logs.exists():
-        flags.append(f"Paste events detected ({paste_logs.count()} times).")
-
-        # Inspect paste size if event_data contains 'text'
+    # Paste
+    if assignment.event_tracking and paste_logs.exists():
+        flags.append(f"Paste events detected ({paste_logs.count()}×).")
         for p in paste_logs:
             pasted = p.event_data.get("text", "")
             if pasted and len(pasted) > 20:
-                flags.append("Pasted text longer than 20 characters.")
+                flags.append("Large pasted snippet detected (>20 chars).")
 
-    # -------------------------------
-    # RULE 3: Very early finishing
-    # -------------------------------
-    if session.duration_seconds:
-        total = session.submission.assignment.viva_duration_seconds
-        if session.duration_seconds < total * 0.25:
-            flags.append("Viva ended unusually early (less than 25% of expected time).")
+    # Early finish
+    if assignment.event_tracking and session.duration_seconds:
+        if session.duration_seconds < assignment.viva_duration_seconds * 0.25:
+            flags.append("Viva ended unusually early (<25% of time).")
 
-    # -------------------------------
-    # RULE 4: Long silence (>120 sec)
-    # -------------------------------
-    msgs = VivaMessage.objects.filter(session=session).order_by("timestamp")
-
-    if msgs.count() >= 2:
+    # Long silence
+    if assignment.keystroke_tracking and msgs.count() >= 2:
         for a, b in zip(msgs, msgs[1:]):
-            gap = (b.timestamp - a.timestamp).total_seconds()
-            if gap > 120:
-                flags.append("Long period of no response (>2 minutes).")
+            if (b.timestamp - a.timestamp).total_seconds() > 120:
+                flags.append("Long period of no response (>120s).")
                 break
+
+    # Arrhythmic typing
+    if assignment.arrhythmic_typing:
+        anomaly_logs = logs.filter(event_type="arrhythmic_typing").count()
+        if anomaly_logs >= 5:
+            flags.append(f"Arrhythmic typing anomalies ({anomaly_logs}×).")
 
     return flags
 
 
+# ---------------------------------------------------------
+# Generate Qualitative Feedback  (JSON hardened)
+# ---------------------------------------------------------
+def generate_viva_feedback(session):
+    submission_text = session.submission.comment[:8000]
+    messages = VivaMessage.objects.filter(session=session).order_by("timestamp")
 
+    transcript = "\n".join(
+        f"{m.sender.upper()}: {m.text}" for m in messages
+    )
+
+    prompt = f"""
+You are an academic tutor providing qualitative evaluation after a viva voce.
+Do NOT score or grade.
+Do NOT mention behavioural integrity.
+
+Return ONLY valid JSON:
+{{
+  "strengths": "...",
+  "improvements": "...",
+  "misconceptions": "...",
+  "impression": "..."
+}}
+
+Student Submission:
+{submission_text}
+
+Viva Transcript:
+{transcript}
+"""
+
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300,
+        temperature=0.4,
+    )
+
+    raw = completion.choices[0].message.content.strip()
+
+    # ---------- JSON hardening ----------
+    cleaned = raw
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        cleaned = cleaned.replace("json", "", 1).strip()
+    try:
+        data = json.loads(cleaned)
+    except:
+        data = {
+            "strengths": "Unable to parse JSON feedback.",
+            "improvements": "",
+            "misconceptions": "",
+            "impression": "",
+        }
+
+    VivaFeedback.objects.create(
+        session=session,
+        strengths=data.get("strengths", ""),
+        improvements=data.get("improvements", ""),
+        misconceptions=data.get("misconceptions", ""),
+        impression=data.get("impression", "")
+    )
