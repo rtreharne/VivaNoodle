@@ -119,3 +119,14 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+
+# ----------------------------------------------------
+# LTI Platform configuration (used for default ToolConfig)
+# ----------------------------------------------------
+LTI_ISS = os.getenv("LTI_ISS", "")
+LTI_CLIENT_ID = os.getenv("LTI_CLIENT_ID", "")
+LTI_DEPLOYMENT_ID = os.getenv("LTI_DEPLOYMENT_ID", "")
+LTI_PLATFORM_JWKS_URL = os.getenv("LTI_PLATFORM_JWKS_URL", "")
+LTI_PLATFORM_AUTHORIZE_URL = os.getenv("LTI_PLATFORM_AUTHORIZE_URL", "")
+LTI_REDIRECT_URI = os.getenv("LTI_REDIRECT_URI", "")
