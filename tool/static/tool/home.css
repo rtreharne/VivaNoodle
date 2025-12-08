@@ -422,13 +422,13 @@ a {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 6px 8px;
-    display: inline;
-    vertical-align: baseline;
+    display: block;
+    width: 100%;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
     color: #e5e7eb;
-    margin: 6px 0 2px;
+    margin: 8px 0 4px;
     white-space: pre-wrap;
     word-break: break-word;
     overflow-wrap: anywhere;
