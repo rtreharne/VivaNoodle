@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MachinaViva delivers AI-powered, text-based vivas that verify authentic understanding for universities. See student and teacher flows, transcripts, integrity signals, and pricing.">
+    <meta property="og:title" content="MachinaViva — AI-Powered Viva Assessments">
+    <meta property="og:description" content="Run authentic, scalable vivas in your LMS. Guided questioning, transcripts, signals, and feedback for students and teachers.">
+    <title>MachinaViva | AI Viva Assessments for Universities</title>
+    <link rel="stylesheet" href="home.css">
+    <script defer src="home.js"></script>
+</head>
+<body>
+<div class="page">
+
+    <!-- NAV -->
+    <header class="nav">
+        <div class="brand">
+            <span class="brand-mark">MV</span>
+            <span>MachinaViva</span>
+        </div>
+        <button class="nav-toggle" data-nav-toggle aria-label="Toggle navigation">Menu</button>
+        <nav class="nav-links" data-nav-links>
+            <a href="#challenge">Challenge</a>
+            <a href="#flow">Flow</a>
+            <a href="#dashboard">Teacher</a>
+            <a href="#pillars">Why</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#" class="pill book-walkthrough">Book Walkthrough</a>
+        </nav>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero full-height">
+        <div class="orb orb-left"></div>
+        <div class="orb orb-right"></div>
+
+        <div class="hero-grid">
+            <div class="hero-copy">
+                <p class="eyebrow">Authentic vivas for the AI era in Higher Education</p>
+                <h1>Assess real understanding with a live, text-based viva.</h1>
+                <p class="lede">
+                    Inclusive, consistent vivas that keep assessment authentic in the generative-AI era. Guided questioning, trusted transcripts, no hard surveillance, and a seamless fit with university workflows.
+                </p>
+                <div class="hero-actions">
+                    <a class="cta primary book-walkthrough" href="#">Book Walkthrough</a>
+                    <a class="cta ghost light" href="#flow">View flow</a>
+                </div>
+            </div>
+
+            <div class="hero-panel">
+                <div class="panel-header">
+                    <div>
+                        <p class="tiny">Live Viva Session</p>
+                        <h3 data-hero-topic>Climate Resilience</h3>
+                    </div>
+                    <span class="badge" data-hero-timer>01:00</span>
+                </div>
+                <p class="simulation-note">Simulated viva.</p>
+
+                <div class="panel-chat" data-hero-chat></div>
+
+                <div class="panel-footer">
+                    <div class="input-row">
+                        <div class="input-shell">
+                            <input data-hero-input type="text" value="" placeholder="Message…" aria-label="Live student response simulation" readonly>
+                            <span class="input-caret"></span>
+                        </div>
+                        <button class="send-btn" aria-label="Send" disabled data-hero-send>Send</button>
+                    </div>
+                    <div class="loader-row" data-hero-loader hidden>
+                        <div class="loader-dots"><span></span><span></span><span></span></div>
+                        <div class="loader-text">Preparing feedback — standby</div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <div class="controls-inner">
+                        <button class="control-btn" data-hero-play>Pause</button>
+                        <button class="control-btn ghost" data-hero-next>Next</button>
+                    </div>
+                    <div class="lang-switch">
+                        <label for="lang-select">Language</label>
+                        <select id="lang-select" data-lang-select>
+                            <option value="en" selected>English</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="zh">中文</option>
+                            <option value="ar">العربية</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHALLENGE -->
+    <section id="challenge" class="section spotlight">
+        <div class="section-head">
+            <p class="eyebrow">The challenge</p>
+            <h2>Students still need to show they understand, even with AI in the mix.</h2>
+            <p class="lede">Generative AI can churn out essays and code, but it can’t think on its feet. Universities need a fast, fair viva to prove students still own their ideas.</p>
+        </div>
+        <div class="pillar-grid challenge-grid">
+            <div class="pillar-card">
+                <h3>The risk</h3>
+                <p>AI can polish or even write submissions, making it hard to tell who understands the work. A grade based on text alone can reward the tool, not the student.</p>
+                <p class="muted">Consequence: silent erosion of learning outcomes and grade integrity.</p>
+            </div>
+            <div class="pillar-card">
+                <h3>The need</h3>
+                <p>Live questioning that probes decisions, evidence, and trade-offs. You need to see students think on their feet, not just turn in a perfected document.</p>
+                <p class="muted">Goal: verify ownership of ideas and surface reasoning, not just final wording.</p>
+            </div>
+            <div class="pillar-card">
+                <h3>The answer</h3>
+                <p>Scaled vivas: guided, text-based dialogue that confirms comprehension and deters delegation to AI. Signals and transcripts keep outcomes, context, and integrity visible.</p>
+                <p class="muted">Result: authentic assessment at cohort scale without surveillance or scheduling chaos.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FLOW -->
+    <section id="flow" class="section">
+        <div class="section-head">
+            <p class="eyebrow">Flow</p>
+            <h2>From zero to viva in minutes.</h2>
+            <p class="lede">Clear steps for students, low lift for teachers.</p>
+        </div>
+        <div class="flow-streams">
+            <div class="flow-stream">
+                <p class="tiny flow-label student">Student journey</p>
+                <div class="flow-grid">
+                    <article class="flow-card">
+                        <span class="step">01</span>
+                        <h3>Makes a submission</h3>
+                        <p>Submits to the viva assessment link in the VLE, like any other assignment.</p>
+                    </article>
+                    <article class="flow-card">
+                        <span class="step">02</span>
+                        <h3>Starts the viva</h3>
+                        <p>Begins when ready (before the deadline) with clear timing, tone, and resources.</p>
+                    </article>
+                    <article class="flow-card">
+                        <span class="step">03</span>
+                        <h3>Reviews feedback</h3>
+                        <p>Sees targeted feedback and can export the transcript (if enabled by the teacher).</p>
+                    </article>
+                </div>
+            </div>
+            <div class="flow-stream">
+                <p class="tiny flow-label teacher">Teacher journey</p>
+                <div class="flow-grid">
+                    <article class="flow-card">
+                        <span class="step">01</span>
+                        <h3>Configure viva</h3>
+                        <p>Creates and configures viva assignment directly in VLE.</p>
+                    </article>
+                    <article class="flow-card">
+                        <span class="step">02</span>
+                        <h3>Monitor roster</h3>
+                        <p>Track completions, view transcripts, and see integrity signals in one table.</p>
+                    </article>
+                    <article class="flow-card">
+                        <span class="step">03</span>
+                        <h3>Review & record</h3>
+                        <p>Scan transcripts and flags, add notes, and export what you need for grading workflows.</p>
+                    </article>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TEACHER DASHBOARD PREVIEW + SETTINGS -->
+    <section id="dashboard" class="section spotlight">
+        <div class="section-head">
+            <p class="eyebrow">Teacher experience</p>
+            <h2>Monitor vivas and configure settings in one place.</h2>
+            <p class="lede">See completions, transcripts, integrity flags, or flip to settings to configure vivas.</p>
+        </div>
+        <div class="view-toggle">
+            <button class="view-btn active" data-view-switch="dashboard">Dashboard</button>
+            <button class="view-btn" data-view-switch="settings">Viva settings</button>
+        </div>
+
+        <div class="dash-view active" data-view-pane="dashboard">
+            <div class="carousel">
+                <div class="carousel-pane active" data-dash-pane="table">
+                        <div class="table-card">
+                            <div class="table-head">
+                                <div>Student</div>
+                                <div>Viva</div>
+                                <div>Integrity flags</div>
+                            </div>
+                            <div class="table-row">
+                                <div>Calvin, Susan</div>
+                                <div class="viva-cell"><span class="viva-status yes" aria-label="Completed"></span><a href="#" class="link view-transcript" data-student="Calvin, Susan">View</a></div>
+                                <div class="flag none">None</div>
+                            </div>
+                            <div class="table-row">
+                                <div>Chen, Mei</div>
+                                <div class="viva-cell"><span class="viva-status yes" aria-label="Completed"></span><a href="#" class="link view-transcript" data-student="Chen, Mei">View</a></div>
+                                <div class="flag warn">Pacing irregular</div>
+                            </div>
+                            <div class="table-row">
+                                <div>Garcia, Luis</div>
+                                <div class="viva-cell"><span class="viva-status no" aria-label="Not completed"></span><span class="link disabled">Pending</span></div>
+                                <div class="flag none">-</div>
+                            </div>
+                            <div class="table-row">
+                                <div>Hughes, Amina</div>
+                                <div class="viva-cell"><span class="viva-status yes" aria-label="Completed"></span><a href="#" class="link view-transcript" data-student="Hughes, Amina">View</a></div>
+                                <div class="flag watch">Copy/paste spikes</div>
+                            </div>
+                            <div class="table-row">
+                                <div>Singh, Priya</div>
+                                <div class="viva-cell"><span class="viva-status yes" aria-label="Completed"></span><a href="#" class="link view-transcript" data-student="Singh, Priya">View</a></div>
+                                <div class="flag warn">Low focus</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="table-note" data-table-note>Example roster view for one assignment — click “View” to explore the transcript experience.</p>
+
+                    <div class="carousel-pane" data-dash-pane="transcript">
+                    <div class="transcript-layout">
+                        <div class="transcript-card">
+                            <div class="transcript-head">
+                                <div>
+                                    <p class="tiny">Transcript review</p>
+                                    <div class="name-row">
+                                        <span>Student:</span>
+                                        <select class="transcript-select">
+                                            <option>Calvin, Susan</option>
+                                            <option selected>Chen, Mei</option>
+                                            <option>Hughes, Amina</option>
+                                            <option>Singh, Priya</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="transcript-head-actions">
+                                    <button class="icon-btn" data-transcript-back title="Back to roster">← Back to roster</button>
+                                    <div class="pill yes">Completed</div>
+                                </div>
+                            </div>
+                            <div class="transcript-meta">
+                                <span class="transcript-assignment">Assignment: Rewilding the UK</span>
+                                <span class="transcript-duration">Duration: 10:12</span>
+                            </div>
+                            <div class="transcript-chat" data-transcript-chat>
+                                <div class="bubble ai">Q1: Summarise your main claim in one sentence.</div>
+                                <div class="bubble user">Rewilding improves resilience by restoring trophic cascades that stabilise ecosystems.</div>
+                                <div class="bubble ai">Q2: What evidence would challenge your claim?</div>
+                                <div class="bubble user">If predator reintroduction led to herbivore collapse or invasive spread, that would contradict it.</div>
+                                <div class="bubble ai">Q3: What policy would you propose?</div>
+                                <div class="bubble user">Pilot rewilding with incentives for affected farmers and monitoring for invasive risk.</div>
+                            </div>
+                        </div>
+
+                        <aside class="transcript-side">
+                            <div class="side-card">
+                                <p class="tiny">Integrity events</p>
+                                <ul class="event-list transcript-events">
+                                    <li><span class="dot warn"></span>Pacing irregular between Q1 → Q2</li>
+                                    <li><span class="dot ok"></span>No copy/paste events detected</li>
+                                    <li><span class="dot ok"></span>Focus stable (1 blur)</li>
+                                </ul>
+                            </div>
+                            <div class="side-card">
+                                <p class="tiny">AI feedback to student</p>
+                                <div class="feedback-block transcript-feedback">
+                                    <p>Feedback pending.</p>
+                                </div>
+                            </div>
+                            <div class="side-card">
+                                <p class="tiny">AI summary for teacher</p>
+                                <div class="feedback-block transcript-summary">
+                                    <p>Student articulated the rewilding claim well, but needs stronger counter-evidence and clearer policy levers. Integrity: pacing irregularities noted; monitor focus if repeated.</p>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="dash-view" data-view-pane="settings">
+            <div class="settings-form-card">
+                <div class="settings-row">
+                    <label>Viva Title</label>
+                    <input type="text" value="Climate resilience viva">
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label>Duration</label>
+                        <input type="number" min="1" step="1" value="10" aria-label="Duration in minutes"> minutes
+                    </div>
+                    <div>
+                        <label>Multiple attempts</label>
+                        <input type="number" min="1" max="5" step="1" value="1" aria-label="Multiple attempts">
+                    </div>
+                    <div>
+                        <label>Tone</label>
+                        <select>
+                            <option selected>Supportive</option>
+                            <option>Neutral</option>
+                            <option>Probing</option>
+                            <option>Peer-like</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Feedback visibility</label>
+                        <select>
+                            <option selected>Show immediately</option>
+                            <option>After teacher review</option>
+                            <option>Hide</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label>Resources</label>
+                        <div class="resource-table">
+                            <div class="resource-head">
+                                <span>File</span>
+                                <span>Feed to Viva</span>
+                                <span></span>
+                            </div>
+                            <div class="resource-row">
+                                <span>Assignment_brief.pdf</span>
+                                <label class="switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                                <button class="pill no">Delete</button>
+                            </div>
+                            <div class="resource-row">
+                                <span>Reading_list.docx</span>
+                                <label class="switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                                <button class="pill no">Delete</button>
+                            </div>
+                        </div>
+                        <div class="upload-hint">Upload additional resources for this viva.</div>
+                        <input type="file" aria-label="Upload assignment resource">
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Additional prompts</label>
+                    <textarea rows="3" placeholder="Add bespoke prompts or instructions for this viva"></textarea>
+                </div>
+                <div class="settings-row">
+                    <label>Allow student to download report</label>
+                    <label class="switch">
+                        <input type="checkbox" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="settings-actions">
+                    <button class="control-btn">Save settings</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PILLARS -->
+    <section id="pillars" class="section">
+        <div class="section-head">
+            <p class="eyebrow">Why MachinaViva</p>
+            <h2>Built for academic judgement, not policing.</h2>
+            <p class="lede">A modern viva experience that respects students and equips staff.</p>
+        </div>
+        <div class="pillar-grid">
+            <div class="pillar-card">
+                <h3>Authenticity by design</h3>
+                <p>Outcome-aligned questioning reveals reasoning that AI-written text can’t fake.</p>
+            </div>
+            <div class="pillar-card">
+                <h3>Transparent signals</h3>
+                <p>Focus shifts, paste events, and timing patterns stay contextual and human-readable.</p>
+            </div>
+            <div class="pillar-card">
+                <h3>Institution-ready</h3>
+                <p>LTI 1.3 native, runs inside your LMS, no parallel logins or extra identities.</p>
+            </div>
+            <div class="pillar-card">
+                <h3>Scales with cohorts</h3>
+                <p>Consistent tone, pacing, and depth across hundreds of students without scheduling chaos.</p>
+            </div>
+        </div>
+        <div id="trust" class="subhead">
+            <p class="eyebrow">Trust & Security</p>
+            <p class="lede">Privacy-first, standards-native, aligned with institutional workflows.</p>
+        </div>
+        <div class="trust-grid">
+            <div class="trust-card">
+                <h3>LTI 1.3 native</h3>
+                <p>Works with Canvas, Blackboard Ultra, Moodle, Brightspace, and Sakai. No bespoke SSO.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Data minimisation</h3>
+                <p>Store transcripts, signals, and configs — never audio, video, or biometrics.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Clear student messaging</h3>
+                <p>Students see exactly what is recorded and why. No hidden monitoring.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Operational guardrails</h3>
+                <p>Timeouts, deployment IDs, and JWKS rotation are handled for you.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="pricing" class="section">
+        <div class="section-head">
+            <p class="eyebrow">Pricing</p>
+            <h2>Simple plans to start, scale, and standardise.</h2>
+            <p class="lede">Pick the path that fits your cohort size and rollout pace.</p>
+        </div>
+        <div class="pricing-grid">
+            <article class="price-card">
+                <div class="price-top">
+                    <p class="tiny">Pilot</p>
+                    <h3>Free</h3>
+                    <p class="price-sub">Up to 50 students · 1 course · 1 year</p>
+                </div>
+                <ul class="price-points">
+                    <li>Full viva experience</li>
+                    <li>Trusted transcripts & signals</li>
+                    <li>Email support</li>
+                </ul>
+                <button class="cta ghost light book-walkthrough">Book a walkthrough</button>
+            </article>
+            <article class="price-card">
+                <div class="price-top">
+                    <p class="tiny">Course*</p>
+                    <h3>£5</h3>
+                    <p class="price-sub">per student per year</p>
+                </div>
+                <ul class="price-points">
+                    <li>Single course rollout</li>
+                    <li>Configured feedback & tone</li>
+                    <li>Priority support</li>
+                </ul>
+                <button class="cta ghost light book-walkthrough">Book a walkthrough</button>
+            </article>
+            <article class="price-card highlight">
+                <div class="price-top">
+                    <p class="tiny">School</p>
+                    <h3>£4k</h3>
+                    <p class="price-sub">per year · up to 2000 students</p>
+                </div>
+                <ul class="price-points">
+                    <li>Multiple courses & cohorts</li>
+                    <li>Shared rubrics & settings</li>
+                    <li>Dedicated success partner</li>
+                </ul>
+                <button class="cta primary book-walkthrough">Book a walkthrough</button>
+            </article>
+            <article class="price-card">
+                <div class="price-top">
+                    <p class="tiny">Institution*</p>
+                    <h3>£20k</h3>
+                    <p class="price-sub">per year</p>
+                </div>
+                <ul class="price-points">
+                    <li>University-wide deployment</li>
+                    <li>Advanced integrity insights</li>
+                    <li>Data residency choices</li>
+                </ul>
+                <button class="cta ghost light book-walkthrough">Book a walkthrough</button>
+            </article>
+        </div>
+        <br>
+        <p class="price-footnote">*Course plan capped at 500 students per year. Institution plan capped at 10,000 students; custom terms available for larger deployments.</p>
+
+    </section>
+
+    <!-- PILOTS -->
+    <section id="pilots" class="section spotlight">
+        <div class="section-head">
+            <p class="eyebrow">Pilots underway</p>
+            <h2>Universities piloting MachinaViva.</h2>
+            <p class="lede">Partnering with leading institutions to validate viva quality and scale.</p>
+        </div>
+        <div class="logo-strip">
+            <div class="logo-track">
+                <div class="logo-card"><img src="img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
+                <!-- repeat for seamless scroll -->
+                <div class="logo-card"><img src="img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="modal-overlay" data-booking-modal>
+        <div class="modal">
+            <div class="modal-head">
+                <h3>Book a MachinaViva walkthrough</h3>
+                <button class="modal-close" data-booking-close aria-label="Close walkthrough form">×</button>
+            </div>
+            <p class="modal-sub">Tell us what you need; we’ll schedule a Microsoft Teams call.</p>
+            <form class="modal-form" data-booking-form>
+                <div class="form-row split">
+                    <label>
+                        <span>Name</span>
+                        <input type="text" required>
+                    </label>
+                    <label>
+                        <span>Institution</span>
+                        <input type="text" required>
+                    </label>
+                </div>
+                <div class="form-row split">
+                    <label>
+                        <span>Department</span>
+                        <input type="text">
+                    </label>
+                    <label>
+                        <span>Role</span>
+                        <input type="text">
+                    </label>
+                </div>
+                <div class="form-row split">
+                    <label>
+                        <span>Email</span>
+                        <input type="email" required>
+                    </label>
+                    <label>
+                        <span>Tel (optional)</span>
+                        <input type="tel" placeholder="+44...">
+                    </label>
+                </div>
+                <div class="form-row split">
+                    <label>
+                        <span>Preferred date (Teams)</span>
+                        <input type="date" required min="2026-01-05">
+                    </label>
+                    <label>
+                        <span>Preferred time</span>
+                        <input type="time" required>
+                    </label>
+                    <label>
+                        <span>VLE</span>
+                        <select required>
+                            <option value="" disabled selected>Select one</option>
+                            <option>Canvas</option>
+                            <option>Blackboard Ultra</option>
+                            <option>Moodle</option>
+                            <option>Brightspace</option>
+                            <option>Sakai</option>
+                            <option>Other</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="form-row">
+                    <label>
+                        <span>Level of interest</span>
+                        <select required>
+                            <option value="" disabled selected>Select one</option>
+                            <option>Pilot</option>
+                            <option>Course</option>
+                            <option>School</option>
+                            <option>Institution</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cta ghost" data-booking-close>Cancel</button>
+                    <button type="submit" class="cta primary">Submit</button>
+                </div>
+                <p class="form-note">We’ll confirm the slot and send a Teams invite.</p>
+            </form>
+            <div class="modal-success" data-booking-success hidden>
+                <p>Thanks! Your walkthrough request was received. We’ll reach out shortly with a Teams invite.</p>
+                <button class="cta primary" data-booking-close>Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay holiday" data-holiday-modal>
+        <div class="modal">
+            <div class="modal-head">
+                <h3>🎄 Walkthrough queue update 🎁</h3>
+                <button class="modal-close" data-holiday-close aria-label="Close holiday notice">×</button>
+            </div>
+            <p class="modal-sub">Wow! Demand has been wild — we don't have any more walkthrough slots available until January 2026.</p>
+            <p class="modal-sub">In the meantime we wish you a very Merry Christmas and a Happy New Year filled with authentic vivas. 🎅✨</p><br>
+            <div class="form-actions">
+                <button class="cta primary book-walkthrough" data-holiday-close>Book Walkthrough</button>
+                <button class="cta ghost" data-holiday-close>Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="floating-cta book-walkthrough" aria-label="Book a walkthrough">
+        <span class="floating-cta-label">Book a walkthrough</span>
+        <small>Schedule a 10 min demo of the system</small>
+        <span class="floating-cta-close" aria-label="Hide walkthrough prompt">×</span>
+    </button>
+
+    <footer class="footer">
+        <p>© 2025 MachinaViva · Authentic viva assessments for the AI era.</p>
+    </footer>
+
+</div>
+</body>
+</html>
