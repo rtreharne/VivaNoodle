@@ -14,7 +14,7 @@ IMG_SRC="$ROOT/tool/static/tool/img"
 mkdir -p "$DEST_DIR/img"
 
 # Rewrite the template with relative asset paths and a literal year.
-python - <<'PY' "$SRC_HTML" "$DEST_HTML"
+python3 - <<'PY' "$SRC_HTML" "$DEST_HTML"
 import datetime
 import pathlib
 import re
@@ -30,7 +30,8 @@ html = re.sub(r'{%\s*load static\s*%}\s*', '', html)
 # Point assets at the docs/ copies
 html = html.replace("{% static 'tool/home.css' %}", "home.css")
 html = html.replace("{% static 'tool/home.js' %}", "home.js")
-html = re.sub(r"{%\s*static\s+'tool/img/", "img/", html)
+# Replace image static references entirely
+html = re.sub(r"{%\s*static\s+'tool/img/([^']+)'\s*%}", r"img/\1", html)
 # Replace dynamic year with a literal
 html = re.sub(r'{{\s*now\|date:"Y"\s*}}', str(datetime.date.today().year), html)
 
