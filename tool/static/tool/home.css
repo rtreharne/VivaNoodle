@@ -415,13 +415,15 @@ a {
     max-width: 100%;
 }
 
-.bubble code {
+.bubble code,
+.bubble code.inline-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 8px 10px;
-    display: inline-block;
+    padding: 6px 8px;
+    display: inline;
+    vertical-align: baseline;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
