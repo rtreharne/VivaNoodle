@@ -14,9 +14,11 @@ load_dotenv(BASE_DIR / ".env")
 # ----------------------------------------------------
 
 SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-default-key-change-me")
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = False
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
+# Ensure local and tunnel hosts are allowed by default
+ALLOWED_HOSTS += ["127.0.0.1", "localhost", "machinaviva.co.uk", "www.machinaviva.co.uk"]
 
 # ----------------------------------------------------
 # Application / Django
@@ -112,6 +114,8 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [
     BASE_DIR / "tool" / "static",
 ]
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ----------------------------------------------------
 # MEDIA (File uploads)

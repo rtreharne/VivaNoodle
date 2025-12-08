@@ -2,7 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("", views.index),
+    #path("", views.index),
+    path("", views.home, name="landing_home"),
 
     # LTI Core
     path("login/", views.lti_login, name="lti_login"),
@@ -38,7 +39,7 @@ urlpatterns = [
     path("viva/summary/<int:session_id>/", views.viva_summary, name="viva_summary"),
     path("viva/logs/<int:session_id>/", views.viva_logs, name="viva_logs"),
 
-    path("home/", views.home, name="landing_home"),
+
 
 
 

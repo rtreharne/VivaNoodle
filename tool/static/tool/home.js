@@ -620,6 +620,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const bookingForm = document.querySelector("[data-booking-form]");
     const bookingSuccess = document.querySelector("[data-booking-success]");
     const bookingCloseButtons = document.querySelectorAll("[data-booking-close]");
+    const holidayModal = document.querySelector("[data-holiday-modal]");
+    const holidayCloseButtons = document.querySelectorAll("[data-holiday-close]");
 
     const openBooking = () => {
         if (bookingModal) bookingModal.classList.add("open");
@@ -652,6 +654,43 @@ document.addEventListener("DOMContentLoaded", () => {
             if (e.target === bookingModal) closeBooking();
         });
     }
+
+    // Holiday modal (capacity notice)
+    const showHolidayModal = () => {
+        if (!holidayModal) return;
+        holidayModal.classList.add("open");
+    };
+
+    // reset dismissal each load so the notice can show after copy changes
+    sessionStorage.removeItem("holidayNoticeDismissed");
+
+    holidayCloseButtons.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (holidayModal) holidayModal.classList.remove("open");
+            sessionStorage.setItem("holidayNoticeDismissed", "1");
+            if (bookingModal && e.target.classList.contains("book-walkthrough")) {
+                openBooking();
+            }
+        });
+    });
+
+    const shouldShowHoliday = () => {
+        if (sessionStorage.getItem("holidayNoticeDismissed") === "1") return;
+        showHolidayModal();
+    };
+
+    window.addEventListener("scroll", () => {
+        if (sessionStorage.getItem("holidayNoticeDismissed") === "1") return;
+        if (window.scrollY > 200) {
+            shouldShowHoliday();
+        }
+    }, { passive: true });
+
+    // Fallback: show after 12s if not yet dismissed
+    setTimeout(() => {
+        shouldShowHoliday();
+    }, 12000);
 
     if (bookingForm) {
         bookingForm.addEventListener("submit", (e) => {

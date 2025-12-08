@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MachinaViva — AI Viva Assessments</title>
+    <meta name="description" content="MachinaViva delivers AI-powered, text-based vivas that verify authentic understanding for universities. See student and teacher flows, transcripts, integrity signals, and pricing.">
+    <meta property="og:title" content="MachinaViva — AI-Powered Viva Assessments">
+    <meta property="og:description" content="Run authentic, scalable vivas in your LMS. Guided questioning, transcripts, signals, and feedback for students and teachers.">
+    <title>MachinaViva | AI Viva Assessments for Universities</title>
     <link rel="stylesheet" href="{% static 'tool/home.css' %}">
     <script defer src="{% static 'tool/home.js' %}"></script>
 </head>
@@ -23,10 +26,8 @@
             <a href="#flow">Flow</a>
             <a href="#dashboard">Teacher</a>
             <a href="#pillars">Why</a>
-            <a href="#pilots">Pilots</a>
             <a href="#pricing">Pricing</a>
-            <a href="#trust">Trust</a>
-            <a href="#" class="pill book-walkthrough">Launch Pilot</a>
+            <a href="#" class="pill book-walkthrough">Book Walkthrough</a>
         </nav>
     </header>
 
@@ -40,10 +41,10 @@
                 <p class="eyebrow">Authentic vivas for the AI era in Higher Education</p>
                 <h1>Assess real understanding with a live, text-based viva.</h1>
                 <p class="lede">
-                    AI-powered, inclusive, consistent vivas that keep assessment authentic in the generative-AI era. Guided questioning, trusted transcripts for grading, no surveillance, and a seamless fit with university workflows.
+                    Inclusive, consistent vivas that keep assessment authentic in the generative-AI era. Guided questioning, trusted transcripts, no hard surveillance, and a seamless fit with university workflows.
                 </p>
                 <div class="hero-actions">
-                    <a class="cta primary book-walkthrough" href="#">Launch Pilot</a>
+                    <a class="cta primary book-walkthrough" href="#">Book Walkthrough</a>
                     <a class="cta ghost light" href="#flow">View flow</a>
                 </div>
             </div>
@@ -56,7 +57,7 @@
                     </div>
                     <span class="badge" data-hero-timer>01:00</span>
                 </div>
-                <p class="simulation-note">Watch a live viva simulation (chat-only) with timed feedback.</p>
+                <p class="simulation-note">Simulated viva.</p>
 
                 <div class="panel-chat" data-hero-chat></div>
 
@@ -99,7 +100,7 @@
         <div class="section-head">
             <p class="eyebrow">The challenge</p>
             <h2>Students still need to show they understand, even with AI in the mix.</h2>
-            <p class="lede">Generative AI can draft essays and code, but it can’t defend choices or reason live. Higher Education needs a fast, fair way to confirm learners haven’t delegated their thinking to tools.</p>
+            <p class="lede">Generative AI can churn out essays and code, but it can’t think on its feet. Universities need a fast, fair viva to prove students still own their ideas.</p>
         </div>
         <div class="pillar-grid challenge-grid">
             <div class="pillar-card">
@@ -390,32 +391,26 @@
                 <p>Consistent tone, pacing, and depth across hundreds of students without scheduling chaos.</p>
             </div>
         </div>
-    </section>
-
-    <!-- PILOTS -->
-    <section id="pilots" class="section spotlight">
-        <div class="section-head">
-            <p class="eyebrow">Pilots underway</p>
-            <h2>Universities piloting MachinaViva.</h2>
-            <p class="lede">Partnering with leading institutions to validate viva quality and scale.</p>
+        <div id="trust" class="subhead">
+            <p class="eyebrow">Trust & Security</p>
+            <p class="lede">Privacy-first, standards-native, aligned with institutional workflows.</p>
         </div>
-        <div class="logo-strip">
-            <div class="logo-track">
-                <div class="logo-card"><img src="{% static 'tool/img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
-                <!-- repeat for seamless scroll -->
-                <div class="logo-card"><img src="{% static 'tool/img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
-                <div class="logo-card"><img src="{% static 'tool/img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
+        <div class="trust-grid">
+            <div class="trust-card">
+                <h3>LTI 1.3 native</h3>
+                <p>Works with Canvas, Blackboard Ultra, Moodle, Brightspace, and Sakai. No bespoke SSO.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Data minimisation</h3>
+                <p>Store transcripts, signals, and configs — never audio, video, or biometrics.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Clear student messaging</h3>
+                <p>Students see exactly what is recorded and why. No hidden monitoring.</p>
+            </div>
+            <div class="trust-card">
+                <h3>Operational guardrails</h3>
+                <p>Timeouts, deployment IDs, and JWKS rotation are handled for you.</p>
             </div>
         </div>
     </section>
@@ -486,29 +481,30 @@
 
     </section>
 
-    <!-- TRUST -->
-    <section id="trust" class="section">
+    <!-- PILOTS -->
+    <section id="pilots" class="section spotlight">
         <div class="section-head">
-            <p class="eyebrow">Trust & Security</p>
-            <h2>Built for universities from day one.</h2>
-            <p class="lede">Privacy-first, standards-native, aligned with institutional workflows.</p>
+            <p class="eyebrow">Pilots underway</p>
+            <h2>Universities piloting MachinaViva.</h2>
+            <p class="lede">Partnering with leading institutions to validate viva quality and scale.</p>
         </div>
-        <div class="trust-grid">
-            <div class="trust-card">
-                <h3>LTI 1.3 native</h3>
-                <p>Works with Canvas, Blackboard Ultra, Moodle, Brightspace, and Sakai. No bespoke SSO.</p>
-            </div>
-            <div class="trust-card">
-                <h3>Data minimisation</h3>
-                <p>Store transcripts, signals, and configs — never audio, video, or biometrics.</p>
-            </div>
-            <div class="trust-card">
-                <h3>Clear student messaging</h3>
-                <p>Students see exactly what is recorded and why. No hidden monitoring.</p>
-            </div>
-            <div class="trust-card">
-                <h3>Operational guardrails</h3>
-                <p>Timeouts, deployment IDs, and JWKS rotation are handled for you.</p>
+        <div class="logo-strip">
+            <div class="logo-track">
+                <div class="logo-card"><img src="{% static 'tool/img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
+                <!-- repeat for seamless scroll -->
+                <div class="logo-card"><img src="{% static 'tool/img/Untitled.png' %}" alt="University of Manchester logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/durham.png' %}" alt="Durham University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Warwick.png' %}" alt="Warwick University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Loughborough.png' %}" alt="Loughborough University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Southampton.png' %}" alt="Southampton University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/Swansea' %}" alt="Swansea University logo" class="logo-img"></div>
+                <div class="logo-card"><img src="{% static 'tool/img/LJMU' %}" alt="Liverpool John Moores University logo" class="logo-img"></div>
             </div>
         </div>
     </section>
@@ -553,8 +549,12 @@
                 </div>
                 <div class="form-row split">
                     <label>
-                        <span>Preferred date & time (Teams)</span>
-                        <input type="datetime-local" required>
+                        <span>Preferred date (Teams)</span>
+                        <input type="date" required min="2026-01-05">
+                    </label>
+                    <label>
+                        <span>Preferred time</span>
+                        <input type="time" required>
                     </label>
                     <label>
                         <span>VLE</span>
@@ -590,6 +590,21 @@
             <div class="modal-success" data-booking-success hidden>
                 <p>Thanks! Your walkthrough request was received. We’ll reach out shortly with a Teams invite.</p>
                 <button class="cta primary" data-booking-close>Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay holiday" data-holiday-modal>
+        <div class="modal">
+            <div class="modal-head">
+                <h3>🎄 Walkthrough queue update 🎁</h3>
+                <button class="modal-close" data-holiday-close aria-label="Close holiday notice">×</button>
+            </div>
+            <p class="modal-sub">Wow! Demand has been wild — we don't have any more walkthrough slots available until January 2026.</p>
+            <p class="modal-sub">In the meantime we wish you a very Merry Christmas and a Happy New Year filled with authentic vivas. 🎅✨</p><br>
+            <div class="form-actions">
+                <button class="cta primary book-walkthrough" data-holiday-close>Book Walkthrough</button>
+                <button class="cta ghost" data-holiday-close>Got it</button>
             </div>
         </div>
     </div>

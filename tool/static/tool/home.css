@@ -881,6 +881,11 @@ a {
     max-width: 620px;
 }
 
+.subhead {
+    text-align: center;
+    margin: 28px auto 18px;
+}
+
 .panel-footer {
     display: flex;
     flex-direction: column;
@@ -1388,6 +1393,14 @@ a {
 }
 
 .modal-success.visible {
+    display: flex;
+}
+
+.modal-overlay.holiday .modal {
+    max-width: 520px;
+}
+
+.modal-overlay.holiday.open {
     display: flex;
 }
 
