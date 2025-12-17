@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
 from ..models import Assignment, Submission, VivaMessage, VivaSession
 from datetime import datetime
 from .viva import compute_integrity_flags
+import json
 
 
 def assignment_edit(request):
@@ -14,7 +15,15 @@ def assignment_edit(request):
     resource_link_id = request.session.get("lti_resource_link_id")
     assignment = Assignment.objects.get(slug=resource_link_id)
 
-    return render(request, "tool/assignment_edit.html", {"assignment": assignment})
+    duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else 10
+    tones = ["Supportive", "Neutral", "Probing", "Peer-like"]
+
+    return render(request, "tool/assignment_edit.html", {
+        "assignment": assignment,
+        "duration_minutes": duration_minutes,
+        "tones": tones,
+        "now": datetime.now(),
+    })
 
 
 def assignment_edit_save(request):
@@ -31,19 +40,34 @@ def assignment_edit_save(request):
     # Basic text fields
     assignment.description = request.POST.get("description", assignment.description)
 
-    # Checkbox: HTML sends "on" when checked
-    assignment.allow_multiple_submissions = (
-        request.POST.get("allow_multiple") == "on"
-    )
+    # Duration (minutes -> seconds)
+    duration_minutes = request.POST.get("viva_duration_minutes")
+    try:
+        duration_int = max(1, int(duration_minutes))
+        assignment.viva_duration_seconds = duration_int * 60
+    except (TypeError, ValueError):
+        pass
 
-    # Duration
-    duration = request.POST.get("viva_duration_seconds")
-    if duration and duration.isdigit():
-        assignment.viva_duration_seconds = int(duration)
+    # Attempts
+    max_attempts = request.POST.get("max_attempts")
+    try:
+        attempts_int = max(1, int(max_attempts))
+        assignment.max_attempts = attempts_int
+        assignment.allow_multiple_submissions = attempts_int > 1
+    except (TypeError, ValueError):
+        pass
+
+    # Tone and feedback visibility
+    assignment.viva_tone = request.POST.get("viva_tone", assignment.viva_tone)
+    assignment.feedback_visibility = request.POST.get("feedback_visibility", assignment.feedback_visibility)
 
     # Viva instructions & notes
     assignment.viva_instructions = request.POST.get("viva_instructions", "")
     assignment.instructor_notes = request.POST.get("instructor_notes", "")
+    assignment.additional_prompts = request.POST.get("additional_prompts", "")
+
+    # Report/download permission
+    assignment.allow_student_report = (request.POST.get("allow_student_report") == "on")
 
     # New tracking fields
     assignment.keystroke_tracking = (request.POST.get("keystroke_tracking") == "on")
@@ -51,6 +75,9 @@ def assignment_edit_save(request):
     assignment.arrhythmic_typing = (request.POST.get("arrhythmic_typing") == "on")
 
     assignment.save()
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"status": "ok"})
 
     return redirect("assignment_view")
 
@@ -91,12 +118,20 @@ def assignment_view(request):
     # Instructor view
     # --------------------------------------------------------------
     if is_instructor_role(roles) or is_admin_role(roles):
-        submissions = Submission.objects.filter(assignment=assignment)
+        submissions = Submission.objects.filter(
+            assignment=assignment
+        ).order_by("-created_at")
+
+        # Latest submission per learner
+        submission_map = {}
+        for sub in submissions:
+            if sub.user_id not in submission_map:
+                submission_map[sub.user_id] = sub
 
         nrps_url = request.session.get("nrps_url")
         roster = fetch_nrps_roster(nrps_url) if nrps_url else []
 
-        # Build sortable_name if missing
+        # Build sortable_name if missing; fallback to submission names if no roster
         for m in roster:
             given = m.get("given_name", "").strip()
             family = m.get("family_name", "").strip()
@@ -104,30 +139,124 @@ def assignment_view(request):
             if family or given:
                 m["sortable_name"] = f"{family}, {given}".strip(", ")
             else:
-                # fallback to Canvas 'name'
                 m["sortable_name"] = m.get("name", "")
-        
+
         roster = sorted(roster, key=lambda m: m["sortable_name"].lower())
 
+        # If NRPS is unavailable, derive a basic roster from submissions
+        if not roster:
+            for sub in submission_map.values():
+                roster.append({
+                    "user_id": sub.user_id,
+                    "sortable_name": sub.user_id,
+                    "roles": ["Learner"],
+                })
 
+        students = []
+        completed_count = 0
+        flagged_count = 0
 
-        submission_map = {s.user_id: s for s in submissions}
+        for member in roster:
+            if "learner" not in ",".join(member.get("roles", [])).lower():
+                continue
 
-        # Build flag_map: { user_id: [flags...] }
-        flag_map = {}
-        for sub in submissions:
+            uid = member.get("user_id")
+            sub = submission_map.get(uid)
+            session = None
             try:
-                session = sub.vivasession
-                flag_map[sub.user_id] = compute_integrity_flags(session)
+                session = sub.vivasession if sub else None
             except VivaSession.DoesNotExist:
-                flag_map[sub.user_id] = []
+                session = None
 
-        return render(request, "tool/instructor_review.html", {
+            flags = compute_integrity_flags(session) if session else []
+
+            viva_payload = None
+            if session:
+                msgs = VivaMessage.objects.filter(
+                    session=session
+                ).order_by("timestamp")
+                messages = [
+                    {
+                        "sender": m.sender,
+                        "text": m.text,
+                        "timestamp": m.timestamp.isoformat(),
+                    }
+                    for m in msgs
+                ]
+
+                try:
+                    fb = session.vivafeedback
+                    feedback = {
+                        "strengths": fb.strengths,
+                        "improvements": fb.improvements,
+                        "misconceptions": fb.misconceptions,
+                        "impression": fb.impression,
+                    }
+                except Exception:
+                    feedback = None
+
+                duration_seconds = session.duration_seconds
+                if not duration_seconds and session.ended_at:
+                    duration_seconds = int(
+                        (session.ended_at - session.started_at).total_seconds()
+                    )
+
+                viva_payload = {
+                    "session_id": session.id,
+                    "assignment_title": assignment.title,
+                    "duration_seconds": duration_seconds,
+                    "messages": messages,
+                    "feedback": feedback,
+                    "flags": flags,
+                    "created_at": session.started_at.isoformat(),
+                }
+
+            status = "pending"
+            if session:
+                status = "completed" if session.ended_at else "in_progress"
+            elif sub:
+                status = "submitted"
+
+            submitted_at = (
+                sub.created_at.isoformat() if sub else None
+            )
+
+            students.append({
+                "user_id": uid,
+                "name": member.get("sortable_name", uid),
+                "submission_id": sub.id if sub else None,
+                "status": status,
+                "submitted_at": submitted_at,
+                "flags": flags,
+                "viva": viva_payload,
+            })
+
+            if status == "completed":
+                completed_count += 1
+            if flags:
+                flagged_count += 1
+
+        dashboard_data = {
+            "assignment": {
+                "title": assignment.title,
+                "id": assignment.id,
+                "slug": assignment.slug,
+            },
+            "students": students,
+            "stats": {
+                "total": len(students),
+                "completed": completed_count,
+                "flagged": flagged_count,
+            },
+        }
+
+        return render(request, "tool/teacher_dashboard.html", {
             "assignment": assignment,
-            "submissions": submissions,
-            "roster": roster,
-            "submission_map": submission_map,
-            "flag_map": flag_map,
+            "students": students,
+            "dashboard_json": json.dumps(dashboard_data, default=str),
+            "now": datetime.now(),
+            "duration_minutes": int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else 10,
+            "tones": ["Supportive", "Neutral", "Probing", "Peer-like"],
         })
 
     # --------------------------------------------------------------

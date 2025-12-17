@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}VivaNoodle{% endblock %}</title>
+    <title>{% block title %}MachinaViva{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'tool/style.css' %}?v={{ time|date:'U' }}">
 </head>
 
@@ -12,8 +12,8 @@
 
 <header class="vn-header">
     <div class="logo-wrap">
-        <span class="logo-emoji">🍜</span>
-        <span class="logo-text">VivaNoodle</span>
+        <span class="logo-emoji">MV</span>
+        <span class="logo-text">MachinaViva</span>
     </div>
     <div class="subtitle">{% block subtitle %}{% endblock %}</div>
 </header>
@@ -26,7 +26,7 @@
 
 
 <footer>
-    © {{ year }} VivaNoodle — All Rights Reserved
+    © {{ year }} MachinaViva — All Rights Reserved
 </footer>
 
 {% block scripts %}{% endblock %}

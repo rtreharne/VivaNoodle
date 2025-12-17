@@ -5,6 +5,7 @@ class Assignment(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     allow_multiple_submissions = models.BooleanField(default=False)
+    max_attempts = models.IntegerField(default=1)
     viva_duration_seconds = models.IntegerField(default=600)  # 10 minutes default
 
     # NEW FIELDS
@@ -16,6 +17,28 @@ class Assignment(models.Model):
     instructor_notes = models.TextField(
         blank=True,
         help_text="Private instructor notes about the assignment or viva. Not visible to students."
+    )
+
+    viva_tone = models.CharField(
+        max_length=50,
+        default="Supportive",
+        help_text="Tone for AI questioning, e.g., Supportive, Neutral, Probing, Peer-like."
+    )
+
+    feedback_visibility = models.CharField(
+        max_length=50,
+        default="immediate",
+        help_text="When students can see AI feedback: immediate, after_review, or hidden."
+    )
+
+    allow_student_report = models.BooleanField(
+        default=True,
+        help_text="Allow students to download their transcript/feedback."
+    )
+
+    additional_prompts = models.TextField(
+        blank=True,
+        help_text="Extra prompts or instructions for this viva (shown to AI)."
     )
 
     keystroke_tracking = models.BooleanField(default=True)
@@ -105,6 +128,5 @@ class VivaFeedback(models.Model):
 
     def __str__(self):
         return f"Feedback for session {self.session.id}"
-
 
 

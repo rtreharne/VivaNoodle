@@ -119,6 +119,12 @@ def viva_send_message(request):
             f"{assignment.viva_instructions}\n"
         )
 
+    if getattr(assignment, "additional_prompts", ""):
+        system_prompt += (
+            "\nAdditional Prompts:\n"
+            f"{assignment.additional_prompts}\n"
+        )
+
     messages_for_model = [
         {"role": "system", "content": system_prompt},
         {"role": "user",

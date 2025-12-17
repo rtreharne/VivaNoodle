@@ -1,99 +1,151 @@
-{% extends "tool/base.html" %}
-{% block content %}
+{% load static %}
+{% now "U" as cachebust %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MachinaViva | Edit Viva Settings</title>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+</head>
+<body>
+<div class="page">
 
-<h2>Edit Assignment Settings</h2>
-
-<div class="card" style="padding: 30px;">
-
-    <form method="POST" action="{% url 'assignment_edit_save' %}" class="settings-form">
-        {% csrf_token %}
-
-        <!-- TITLE (read-only) -->
-        <div class="form-row">
-            <label>Assignment Title</label>
-            <input value="{{ assignment.title }}" disabled class="readonly">
-            <div class="help">Title comes from Canvas and cannot be edited here.</div>
+    <header class="nav">
+        <div class="brand">
+            <span class="brand-mark">MV</span>
+            <span>MachinaViva</span>
         </div>
-
-        <!-- DESCRIPTION -->
-        <div class="form-row">
-            <label for="description">Description</label>
-            <textarea id="description" name="description" rows="4">{{ assignment.description }}</textarea>
+        <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
+        <div class="nav-actions view-toggle">
+            <a class="view-btn" href="{% url 'assignment_view' %}">Dashboard</a>
+            <a class="view-btn active" href="#">Viva settings</a>
+            <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">Light</button>
         </div>
+    </header>
 
-        <!-- MULTIPLE SUBMISSIONS -->
-        <div class="form-row">
-            <label for="allow_multiple">Multiple Submissions</label>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="allow_multiple" name="allow_multiple"
-                       {% if assignment.allow_multiple_submissions %}checked{% endif %}>
-                <span>Allow students to submit more than once</span>
+    <section class="section dash-compact">
+        <div class="section-head compact">
+            <div>
+                <p class="eyebrow">Edit viva configuration</p>
+                <h2>{{ assignment.title }}</h2>
             </div>
         </div>
 
-        <!-- DURATION -->
-        <div class="form-row">
-            <label for="viva_duration_seconds">Viva Duration (seconds)</label>
-            <input id="viva_duration_seconds" name="viva_duration_seconds" 
-                   type="number" min="60" value="{{ assignment.viva_duration_seconds }}">
-        </div>
+        <form method="POST" action="{% url 'assignment_edit_save' %}" class="settings-grid" novalidate>
+            {% csrf_token %}
 
-        <!-- NEW SETTINGS: TRACKING -------------------------------------------------------- -->
-
-        <h3 style="margin-top: 30px; margin-bottom: 10px;">Tracking Settings</h3>
-
-        <!-- Keystroke Tracking -->
-        <div class="form-row">
-            <label for="keystroke_tracking">Keystroke Tracking</label>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="keystroke_tracking" name="keystroke_tracking"
-                       {% if assignment.keystroke_tracking|default:True %}checked{% endif %}>
-                <span>Log all keypress activity during the viva</span>
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Timing & access</h3>
+                </div>
+                <div class="settings-row">
+                    <label>Assignment Title</label>
+                    <input type="text" value="{{ assignment.title }}" disabled>
+                    <p class="meta">Title comes from your LMS.</p>
+                </div>
+                <div class="settings-row">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Short summary for staff and students.">{{ assignment.description }}</textarea>
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label for="viva_duration_minutes">Duration</label>
+                        <input type="number" id="viva_duration_minutes" name="viva_duration_minutes" min="1" step="1" value="{{ duration_minutes }}"> minutes
+                    </div>
+                    <div>
+                        <label for="max_attempts">Multiple attempts</label>
+                        <input type="number" id="max_attempts" name="max_attempts" min="1" max="5" step="1" value="{{ assignment.max_attempts|default:1 }}">
+                    </div>
+                    <div>
+                        <label for="feedback_visibility">Feedback visibility</label>
+                        <select id="feedback_visibility" name="feedback_visibility">
+                            <option value="immediate" {% if assignment.feedback_visibility == "immediate" %}selected{% endif %}>Show immediately</option>
+                            <option value="after_review" {% if assignment.feedback_visibility == "after_review" %}selected{% endif %}>After teacher review</option>
+                            <option value="hidden" {% if assignment.feedback_visibility == "hidden" %}selected{% endif %}>Hide</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Allow student to download report</label>
+                    <label class="switch">
+                        <input type="checkbox" name="allow_student_report" {% if assignment.allow_student_report %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <!-- Event Tracking -->
-        <div class="form-row">
-            <label for="event_tracking">Event Tracking</label>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="event_tracking" name="event_tracking"
-                       {% if assignment.event_tracking|default:True %}checked{% endif %}>
-                <span>Track paste, copy, cut, blur, and focus events</span>
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Tone & guidance</h3>
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label for="viva_tone">Tone</label>
+                        <select id="viva_tone" name="viva_tone">
+                            {% for tone in tones %}
+                                <option value="{{ tone }}" {% if assignment.viva_tone == tone %}selected{% endif %}>{{ tone }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Tracking</label>
+                        <div class="meta">{% if assignment.event_tracking %}Events{% else %}—{% endif %}{% if assignment.keystroke_tracking %}, Keystrokes{% endif %}{% if assignment.arrhythmic_typing %}, Arrhythmic{% endif %}</div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label for="viva_instructions">Core viva instructions</label>
+                    <textarea id="viva_instructions" name="viva_instructions" rows="4" placeholder="How should the AI conduct the viva? Tone, strictness, what to probe, what to avoid.">{{ assignment.viva_instructions }}</textarea>
+                </div>
+
+                <div class="settings-row">
+                    <label for="additional_prompts">Additional prompts</label>
+                    <textarea id="additional_prompts" name="additional_prompts" rows="3" placeholder="Any bespoke prompts or discipline-specific instructions.">{{ assignment.additional_prompts }}</textarea>
+                </div>
+
+                <div class="settings-row">
+                    <label for="instructor_notes">Instructor notes (private)</label>
+                    <textarea id="instructor_notes" name="instructor_notes" rows="3" placeholder="Private notes about this viva.">{{ assignment.instructor_notes }}</textarea>
+                </div>
+
+                <div class="settings-row split">
+                    <div>
+                        <label>Event tracking</label>
+                        <label class="switch">
+                            <input type="checkbox" name="event_tracking" {% if assignment.event_tracking %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <div class="meta">Track paste, blur/focus, and window changes.</div>
+                    </div>
+                    <div>
+                        <label>Keystroke tracking</label>
+                        <label class="switch">
+                            <input type="checkbox" name="keystroke_tracking" {% if assignment.keystroke_tracking %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <div class="meta">Log keypress activity for pacing signals.</div>
+                    </div>
+                    <div>
+                        <label>Arrhythmic typing detection</label>
+                        <label class="switch">
+                            <input type="checkbox" name="arrhythmic_typing" {% if assignment.arrhythmic_typing %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <div class="meta">Flag irregular typing bursts.</div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <!-- Arrhythmic Typing -->
-        <div class="form-row">
-            <label for="arrhythmic_typing">Arrhythmic Typing Detection</label>
-            <div class="checkbox-wrapper">
-                <input type="checkbox" id="arrhythmic_typing" name="arrhythmic_typing"
-                       {% if assignment.arrhythmic_typing|default:True %}checked{% endif %}>
-                <span>Detect suspicious typing patterns (e.g., rapid alternating speed)</span>
+            <div class="settings-actions">
+                <button class="control-btn primary" type="submit">Save settings</button>
+                <a class="ghost-btn" href="{% url 'assignment_view' %}">Cancel</a>
             </div>
-            <div class="help">Used only for behavioural integrity analysis.</div>
-        </div>
+        </form>
+    </section>
 
-        <!-- VIVA INSTRUCTIONS -->
-        <div class="form-row">
-            <label for="viva_instructions">Viva Instructions</label>
-            <textarea id="viva_instructions" name="viva_instructions" rows="6"
-            placeholder="How should the AI conduct the viva? (tone, strictness, what to probe, what to avoid, discipline-specific norms)">{{ assignment.viva_instructions }}</textarea>
-            <div class="help">These instructions directly influence how the AI questions the student.</div>
-        </div>
-
-        <!-- INSTRUCTOR NOTES -->
-        <div class="form-row">
-            <label for="instructor_notes">Instructor Notes</label>
-            <textarea id="instructor_notes" name="instructor_notes" rows="4"
-            placeholder="Private notes about the assignment or viva.">{{ assignment.instructor_notes }}</textarea>
-        </div>
-
-        <div class="form-actions">
-            <button type="submit" class="button primary">Save Changes</button>
-        </div>
-
-    </form>
-
+    <footer class="footer">
+        <p>© {{ now|date:"Y" }} MachinaViva · Authentic viva assessments for the AI era.</p>
+    </footer>
 </div>
-
-{% endblock %}
+</body>
+</html>

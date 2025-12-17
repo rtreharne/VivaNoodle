@@ -1,0 +1,261 @@
+{% load static %}
+{% now "U" as cachebust %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MachinaViva | Teacher Dashboard</title>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    <script defer src="{% static 'tool/teacher_dashboard.js' %}?v={{ cachebust }}"></script>
+</head>
+<body>
+<div class="page">
+
+    <header class="nav">
+        <div class="brand">
+            <span class="brand-mark">MV</span>
+            <span>MachinaViva</span>
+        </div>
+        <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
+        <div class="nav-actions view-toggle">
+            <button class="view-btn active" data-view-switch="dashboard">Dashboard</button>
+            <button class="view-btn" data-view-switch="settings">Viva settings</button>
+            <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">Light</button>
+        </div>
+    </header>
+
+    <section id="dashboard" class="section dash-compact">
+        <div class="dash-view active" data-view-pane="dashboard">
+            <div class="carousel">
+                <div class="carousel-pane active" data-dash-pane="table">
+                    <div class="table-controls">
+                        <input type="search" class="filter-input" placeholder="Filter students by name…" aria-label="Filter students" data-student-filter>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-head">
+                            <div>Student</div>
+                            <div>Viva</div>
+                            <div>Integrity flags</div>
+                        </div>
+
+                        {% if students %}
+                            {% for student in students %}
+                                <div class="table-row" data-student-row data-student-id="{{ student.user_id }}">
+                                    <div>{{ student.name }}</div>
+                                    <div class="viva-cell">
+                                        {% if student.status == "completed" %}
+                                            <span class="viva-status yes" aria-label="Completed"></span>
+                                            <a href="#" class="link view-transcript" data-view-transcript="{{ student.user_id }}">View</a>
+                                        {% elif student.status == "in_progress" %}
+                                            <span class="viva-status warn" aria-label="In progress"></span>
+                                            <a href="#" class="link view-transcript" data-view-transcript="{{ student.user_id }}">Open</a>
+                                        {% elif student.status == "submitted" %}
+                                            <span class="viva-status no" aria-label="Submitted"></span>
+                                            <span class="link disabled">Submitted</span>
+                                        {% else %}
+                                            <span class="viva-status no" aria-label="Pending"></span>
+                                            <span class="link disabled">Pending</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flag {% if student.flags %}warn{% else %}none{% endif %}">
+                                        {% if student.flags %}
+                                            {{ student.flags|length }} flag{% if student.flags|length != 1 %}s{% endif %}
+                                        {% else %}
+                                            None
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="table-row">
+                                <div>No roster available</div>
+                                <div class="viva-cell"><span class="viva-status no"></span><span class="link disabled">—</span></div>
+                                <div class="flag none">—</div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <p class="table-note" data-table-note>Live roster and transcript view for this assignment. Click “View” to open a transcript.</p>
+                </div>
+
+                <div class="carousel-pane" data-dash-pane="transcript">
+                    <div class="transcript-layout">
+                        <div class="transcript-card">
+                            <div class="transcript-head">
+                                <div>
+                                    <p class="tiny">Transcript review</p>
+                                    <div class="name-row">
+                                        <span>Student:</span>
+                                        <select class="transcript-select" data-transcript-select>
+                                            <option value="" selected disabled>Select a student</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="transcript-head-actions">
+                                    <button class="icon-btn" data-transcript-back title="Back to roster">← Back to roster</button>
+                                    <div class="pill yes" data-transcript-status>—</div>
+                                </div>
+                            </div>
+                            <div class="transcript-meta">
+                                <span class="transcript-assignment">Assignment: {{ assignment.title }}</span>
+                                <span class="transcript-duration" data-transcript-duration>Duration: —</span>
+                            </div>
+                            <div class="transcript-chat" data-transcript-chat>
+                                <div class="bubble system">Select a student with a completed viva to view the transcript.</div>
+                            </div>
+                        </div>
+
+                        <aside class="transcript-side">
+                            <div class="side-card">
+                                <p class="tiny">Integrity events</p>
+                                <ul class="event-list transcript-events" data-transcript-events>
+                                    <li class="muted">No transcript selected.</li>
+                                </ul>
+                            </div>
+                            <div class="side-card">
+                                <p class="tiny">AI feedback to student</p>
+                                <div class="feedback-block transcript-feedback" data-transcript-feedback>
+                                    <p class="muted">Select a completed viva to see feedback.</p>
+                                </div>
+                            </div>
+                            <div class="side-card">
+                                <p class="tiny">AI summary for teacher</p>
+                                <div class="feedback-block transcript-summary" data-transcript-summary>
+                                    <p class="muted">Feedback will appear here.</p>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="dash-view" data-view-pane="settings">
+            <form id="settings-form" class="settings-grid" method="POST" action="{% url 'assignment_edit_save' %}" data-settings-form novalidate>
+                {% csrf_token %}
+                <div class="settings-form-card">
+                    <div class="settings-card-head">
+                        <h3 class="settings-title">Overview</h3>
+                    </div>
+                    <div class="settings-row split">
+                        <div>
+                            <label>Viva title</label>
+                            <div class="meta">{{ assignment.title }}</div>
+                        </div>
+                        <div>
+                            <label for="viva_duration_minutes">Duration</label>
+                            <input type="number" id="viva_duration_minutes" name="viva_duration_minutes" min="1" step="1" value="{{ duration_minutes|default:10 }}">
+                        </div>
+                        <div>
+                            <label for="max_attempts">Attempts</label>
+                            <input type="number" id="max_attempts" name="max_attempts" min="1" max="5" step="1" value="{{ assignment.max_attempts|default:1 }}">
+                        </div>
+                        <div>
+                            <label for="viva_tone">Tone</label>
+                            <select id="viva_tone" name="viva_tone">
+                                {% for tone in tones %}
+                                    <option value="{{ tone }}" {% if assignment.viva_tone == tone %}selected{% endif %}>{{ tone }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row split">
+                        <div>
+                            <label for="feedback_visibility">Feedback visibility</label>
+                            <select id="feedback_visibility" name="feedback_visibility">
+                                <option value="immediate" {% if assignment.feedback_visibility == "immediate" %}selected{% endif %}>Show immediately</option>
+                                <option value="after_review" {% if assignment.feedback_visibility == "after_review" %}selected{% endif %}>After teacher review</option>
+                                <option value="hidden" {% if assignment.feedback_visibility == "hidden" %}selected{% endif %}>Hide</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Student report</label>
+                        <div class="tracking-table">
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Download feedback/transcript</div>
+                                    <div class="meta">Allow students to export their session.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="allow_student_report" {% if assignment.allow_student_report %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Tracking</label>
+                        <div class="tracking-table">
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Event tracking</div>
+                                    <div class="meta">Paste, blur/focus, window changes.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="event_tracking" {% if assignment.event_tracking %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Keystroke tracking</div>
+                                    <div class="meta">Pacing signals.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="keystroke_tracking" {% if assignment.keystroke_tracking %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Arrhythmic typing</div>
+                                    <div class="meta">Flag irregular bursts.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="arrhythmic_typing" {% if assignment.arrhythmic_typing %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-form-card">
+                    <div class="settings-card-head">
+                        <h3 class="settings-title">Tone & guidance</h3>
+                    </div>
+                    <div class="settings-row">
+                        <label for="viva_instructions">Core viva instructions</label>
+                        <textarea id="viva_instructions" name="viva_instructions" rows="4" placeholder="How should the AI conduct the viva? Tone, strictness, what to probe, what to avoid.">{{ assignment.viva_instructions }}</textarea>
+                    </div>
+
+                    <div class="settings-row">
+                        <label for="additional_prompts">Additional prompts</label>
+                        <textarea id="additional_prompts" name="additional_prompts" rows="3" placeholder="Any bespoke prompts or discipline-specific instructions.">{{ assignment.additional_prompts }}</textarea>
+                    </div>
+
+                    <div class="settings-row">
+                        <label for="instructor_notes">Instructor notes (private)</label>
+                        <textarea id="instructor_notes" name="instructor_notes" rows="3" placeholder="Private notes about this viva.">{{ assignment.instructor_notes }}</textarea>
+                    </div>
+                </div>
+
+                <div class="settings-actions">
+                    <span class="meta" data-save-status></span>
+                </div>
+            </form>
+        </div>
+        <button class="back-to-top" type="button" data-back-to-top aria-label="Back to top">↑ Top</button>
+    </section>
+
+    <footer class="footer">
+        <p>© {{ now|date:"Y" }} MachinaViva · Authentic viva assessments for the AI era.</p>
+    </footer>
+</div>
+
+<script id="dashboard-data" type="application/json">{{ dashboard_json|safe }}</script>
+<div class="save-toast" data-save-toast>Settings updated</div>
+</body>
+</html>

@@ -1,4 +1,5 @@
 {% load static %}
+{% now "U" as cachebust %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,8 +9,8 @@
     <meta property="og:title" content="MachinaViva — AI-Powered Viva Assessments">
     <meta property="og:description" content="Run authentic, scalable vivas in your LMS. Guided questioning, transcripts, signals, and feedback for students and teachers.">
     <title>MachinaViva | AI Viva Assessments for Universities</title>
-    <link rel="stylesheet" href="{% static 'tool/home.css' %}">
-    <script defer src="{% static 'tool/home.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    <script defer src="{% static 'tool/home.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
 <div class="page">
