@@ -1,98 +1,40 @@
-{% extends "tool/base.html" %}
 {% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viva placeholder</title>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}">
+</head>
+<body>
+<div class="page">
+    <header class="nav">
+        <div class="brand">
+            <span class="brand-mark">MV</span>
+            <span>MachinaViva</span>
+        </div>
+        <div class="nav-title">Viva temporarily offline</div>
+    </header>
 
-{% block content %}
-
-<!-- VIVA INTRO OVERLAY -->
-<div id="vivaIntro"
-     style="position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;">
-    
-    <div style="background: white;
-                padding: 30px;
-                max-width: 600px;
-                border-radius: 12px;
-                box-shadow: 0 5px 20px rgba(0,0,0,0.2);">
-
-        <h2 style="margin-top:0;">Before You Begin</h2>
-        
-        <p>This viva-style assessment will ask you questions about your submitted work.  
-        The goal is to confirm your understanding and help you reflect on your own work — 
-        not to trick or punish you.</p>
-
-        <h3>What to Expect</h3>
-        <ul>
-            <li>You will have <strong>{{ remaining_seconds }} seconds</strong> to complete the viva.</li>
-            <li>Questions will appear one at a time.</li>
-            <li>The timer cannot be paused.</li>
-        </ul>
-
-        <h3>Your Responsibilities</h3>
-        <ul>
-            <li>Please engage honestly in your own words.</li>
-            <li>Do not switch tabs or copy/paste from external sources.</li>
-            <li>Behaviours such as pasting, cutting, copying, or leaving the page may be logged.</li>
-        </ul>
-
-        <p style="margin-top:15px;">When you are ready, click below to begin.</p>
-
-        <button id="startVivaBtn" class="button"
-                style="width: 100%; margin-top: 20px;">
-            Begin Viva
-        </button>
-    </div>
+    <section class="section dash-compact">
+        <div class="settings-form-card">
+            <div class="settings-card-head">
+                <h3 class="settings-title">Viva is being rebuilt</h3>
+            </div>
+            <div class="settings-row">
+                <div class="meta">
+                    This viva experience is temporarily offline while we rebuild it. Your submission and attempts are recorded.
+                    Please check back later or contact your instructor if you need support.
+                </div>
+            </div>
+            <div class="settings-row">
+                <div class="meta">
+                    Assignment: {{ session.submission.assignment.title }}
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
-
-
-<h2>Viva Session</h2>
-
-<div id="timer" style="
-    font-weight: bold;
-    font-size: 20px;
-    margin-bottom: 15px;
-    text-align: center;
-">
-    Time remaining: <span id="timeLeft">{{ remaining_seconds }}</span>
-</div>
-
-
-
-<div id="viva-container" class="card" style="padding: 20px;">
-    
-    <!-- Messages -->
-    <div id="messages" 
-         style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background:#fff;">
-        <!-- Messages will appear here -->
-    </div>
-
-    <!-- Input Row -->
-    <div style="display:flex; gap:10px; margin-top:20px;">
-        <input id="messageInput" type="text" 
-               placeholder="Type your answer…" 
-               style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
-        
-        <button id="sendBtn" class="button">Send</button>
-    </div>
-</div>
-
-<script src="{% static 'tool/viva.js' %}?v={{ time|date:'U' }}"></script>
-
-<script>
-    initViva({
-        sessionId: {{ session.id }},
-        sendUrl: "{% url 'viva_send_message' %}",
-        pollUrl: "{% url 'viva_session' session.id %}?poll=1"
-    });
-
-    initTimer({{ remaining_seconds }}, {{ viva_ended|yesno:"true,false" }});
-</script>
-
-
-
-{% endblock %}
+</body>
+</html>

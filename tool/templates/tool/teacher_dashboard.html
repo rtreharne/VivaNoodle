@@ -50,6 +50,7 @@
                                         {% elif student.status == "in_progress" %}
                                             <span class="viva-status warn" aria-label="In progress"></span>
                                             <a href="#" class="link view-transcript" data-view-transcript="{{ student.user_id }}">Open</a>
+                                            <span class="meta">⏱ <span data-remaining="{{ student.remaining_seconds|default:0 }}"></span></span>
                                         {% elif student.status == "submitted" %}
                                             <span class="viva-status no" aria-label="Submitted"></span>
                                             <span class="link disabled">Submitted</span>
@@ -143,6 +144,12 @@
                             <label>Viva title</label>
                             <div class="meta">{{ assignment.title }}</div>
                         </div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="2" placeholder="Short summary for staff and students.">{{ assignment.description }}</textarea>
+                    </div>
+                    <div class="settings-row split">
                         <div>
                             <label for="viva_duration_minutes">Duration</label>
                             <input type="number" id="viva_duration_minutes" name="viva_duration_minutes" min="1" step="1" value="{{ duration_minutes|default:10 }}">

@@ -56,10 +56,20 @@ def submit_file(request):
         assignment=assignment,
         user_id=user_id,
         file=uploaded,
-        comment="",  # extracted text will be added later
+        comment="",  # extracted text will be added after save
     )
 
-    return redirect("submission_status", submission_id=sub.id)
+    # Extract text immediately for preview/status
+    try:
+        if sub.file and sub.file.path:
+            extracted = extract_text_from_file(sub.file.path)
+            sub.comment = extracted[:50000]
+            sub.save()
+    except Exception:
+        # If extraction fails, continue without blocking the redirect
+        pass
+
+    return redirect("assignment_view")
 
 
 # ============================================================

@@ -1,87 +1,219 @@
-{% extends "tool/base.html" %}
-{% block content %}
+{% load static %}
+{% now "U" as cachebust %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MachinaViva | Student Dashboard</title>
+    <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    <script defer src="{% static 'tool/student_dashboard.js' %}?v={{ cachebust }}"></script>
+</head>
+<body>
+<div class="page">
 
-<h2 class="page-heading">{{ assignment.title }}</h2>
-
-<!-- ========================================================= -->
-<!--  Latest Submission (single polished card)                  -->
-<!-- ========================================================= -->
-
-{% if latest_submission %}
-<div class="card">
-
-    <h3>Your Latest Submission</h3>
-
-    <p class="subtle">
-        Submitted on {{ latest_submission.created_at|date:"Y-m-d H:i" }}
-    </p>
-
-    {% if latest_submission.comment %}
-        <div class="extracted-preview">
-            <p>{{ latest_submission.comment|truncatechars:200 }}</p>
+    <header class="nav">
+        <div class="brand">
+            <span class="brand-mark">MV</span>
+            <span>MachinaViva</span>
         </div>
-    {% endif %}
+        <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
+        <div class="nav-actions">
+            <button class="view-btn ghost layout-toggle-btn" type="button" data-layout-toggle aria-label="Toggle layout">
+                <span class="layout-icon layout-columns" aria-hidden="true"></span>
+                <span class="layout-icon layout-rows is-hidden" aria-hidden="true"></span>
+            </button>
+            <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">Light</button>
+        </div>
+    </header>
 
-    {% if latest_submission.vivasession %}
-        <a class="button primary" href="{% url 'viva_session' latest_submission.vivasession.id %}">
-            Resume Viva
-        </a>
-    {% else %}
-        <p>When you are ready, begin your viva examination.</p>
-        <a class="button primary" href="{% url 'viva_start' latest_submission.id %}">
-            Begin Viva
-        </a>
-    {% endif %}
+    <section class="section dash-compact">
 
+        <div class="settings-grid">
+            <div class="settings-form-card" data-viva-summary-card>
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Submission & Viva</h3>
+                    {% if viva_status == "in_progress" %}
+                        <div class="pill warn">In progress</div>
+                    {% elif viva_status == "completed" %}
+                        <div class="pill yes">Completed</div>
+                    {% elif viva_status == "submitted" %}
+                        <div class="pill neutral">Submitted</div>
+                    {% else %}
+                        <div class="pill no">Pending</div>
+                    {% endif %}
+                </div>
 
+                <div class="settings-row split">
+                    <div>
+                        <label>Viva</label>
+                        {% if latest_submission %}
+                            {% if viva_status == "in_progress" %}
+                                {% if attempts_left > 0 %}
+                                    <div class="meta">In progress (attempt {{ attempts_used }} of {{ assignment.max_attempts|default:1 }})</div>
+                                {% endif %}
+                                {% if remaining_seconds %}
+                                    <div class="meta">Time remaining: <span data-remaining="{{ remaining_seconds|default:0 }}"></span></div>
+                                {% endif %}
+                            {% elif viva_status == "completed" %}
+                                <div class="viva-action">
+                                    <a class="control-btn" href="{% url 'viva_summary' latest_submission.vivasession.id %}">View summary</a>
+                                </div>
+                                {% if attempts_left > 0 %}
+                                    <div class="viva-action">
+                                        <button class="control-btn throb-btn" type="button" data-start-viva data-start-url="{% url 'viva_start' latest_submission.id %}">Start another attempt</button>
+                                        <div class="meta">{{ attempts_left }} attempt{% if attempts_left != 1 %}s{% endif %} left</div>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <div class="viva-action">
+                                    <button class="control-btn throb-btn" type="button" data-start-viva data-start-url="{% url 'viva_start' latest_submission.id %}">Begin viva</button>
+                                    {% if attempts_left is not None %}
+                                        <div class="meta">{{ attempts_left }} attempt{% if attempts_left != 1 %}s{% endif %} left</div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="meta">Submit your work to start the viva.</div>
+                        {% endif %}
+                    </div>
+                </div>
 
+                {% if latest_submission %}
+                    <div class="settings-row">
+                        <label>Latest submission</label>
+                        <div class="meta">Submitted on {{ latest_submission.created_at|date:"Y-m-d H:i" }}</div>
+                        {% if latest_submission.file %}
+                            <div class="meta" style="margin-top:6px;">File:
+                                <a class="link file-preview"
+                                   href="#"
+                                   data-preview-text="{{ latest_submission.comment|default_if_none:''|escapejs }}">
+                                    {{ latest_submission.file.name|cut:"submissions/"|cut:"submission/"|default:"uploaded file" }}
+                                </a>
+                            </div>
+                        {% endif %}
+
+                        {% if assignment.allow_multiple_submissions %}
+                            <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form" style="margin-top:16px;">
+                                {% csrf_token %}
+                                <label class="meta" style="display:block; margin-bottom:6px;">Re-upload</label>
+                                <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" required>
+                                <div class="meta">Accepted formats: PDF, DOCX, TXT</div>
+                                <button type="submit" class="control-btn submit-btn-spaced" style="margin-top:10px;">Re-upload</button>
+                            </form>
+                        {% endif %}
+                    </div>
+
+                    {% if feedback %}
+                    <div class="settings-row">
+                        <label>Feedback</label>
+                        <div class="meta"><strong>Strengths:</strong> {{ feedback.strengths }}</div>
+                        <div class="meta"><strong>Improvements:</strong> {{ feedback.improvements }}</div>
+                        <div class="meta"><strong>Impression:</strong> {{ feedback.impression }}</div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="settings-row">
+                        <label>Upload a file</label>
+                        <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form">
+                            {% csrf_token %}
+                            <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" required>
+                            <div class="meta">Accepted formats: PDF, DOCX, TXT</div>
+                            <button type="submit" class="control-btn submit-btn-spaced">Upload</button>
+                        </form>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="settings-form-card is-hidden" data-viva-chat-card>
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Viva chat</h3>
+                    <button class="control-btn ghost" type="button" data-back-summary>Back to details</button>
+                </div>
+                <div class="viva-chat-card">
+                    <div class="viva-chat-head">
+                        <div>
+                            <p class="tiny">Preview only</p>
+                            <div class="pill warn">Live chat coming soon</div>
+                        </div>
+                    </div>
+                    <div class="panel-chat viva-chat-window">
+                        <div class="bubble ai">Hi there, I'm your MachinaViva interviewer. Ready to discuss your submission?</div>
+                        <div class="bubble user">Yes, looking forward to it.</div>
+                        <div class="bubble ai">Great. I’ll ask focused questions based on your upload. Please answer in your own words.</div>
+                    </div>
+                    <div class="input-row viva-input">
+                        <div class="input-shell">
+                            <input type="text" placeholder="Type your response..." disabled>
+                        </div>
+                        <button class="control-btn primary" type="button" disabled>Send</button>
+                    </div>
+                    <p class="meta" style="margin-top:8px;">Chat is a placeholder right now. When live, it will stay on this page without a refresh.</p>
+                </div>
+            </div>
+
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Assignment info</h3>
+                </div>
+                {% if assignment.description %}
+                <div class="settings-row">
+                    <label>Description</label>
+                    <div class="meta">{{ assignment.description }}</div>
+                </div>
+                {% endif %}
+                <div class="settings-row split">
+                    <div>
+                        <label>Duration</label>
+                        <div class="meta">{{ duration_minutes|default:10 }} minutes</div>
+                    </div>
+                    <div>
+                        <label>Attempts</label>
+                        <div class="meta">{{ assignment.max_attempts|default:1 }} allowed</div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Feedback</label>
+                    <div class="meta">
+                        {% if assignment.feedback_visibility == "hidden" %}Feedback hidden{% elif assignment.feedback_visibility == "after_review" %}Feedback after teacher review{% else %}Feedback shown immediately{% endif %}
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Downloads</label>
+                    <div class="meta">{% if assignment.allow_student_report %}You can download your transcript/feedback{% else %}Downloads disabled{% endif %}</div>
+                </div>
+                <div class="settings-row">
+                    <label>Tracking</label>
+                    <div class="meta">
+                        {% if assignment.event_tracking %}We note paste events and when you switch away, just to give teachers context.{% else %}Event tracking is off.{% endif %}
+                    </div>
+                    <div class="meta">
+                        {% if assignment.keystroke_tracking %}We capture typing pace (not the content) to understand pacing.{% else %}Keystroke pacing is off.{% endif %}
+                    </div>
+                    <div class="meta">
+                        {% if assignment.arrhythmic_typing %}We flag unusual typing bursts so staff can double-check context.{% else %}Arrhythmic typing flags are off.{% endif %}
+                    </div>
+                    <div class="meta">Tips: stay in the window, type steadily in your own words, avoid large pasted chunks.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>© {{ now|date:"Y" }} MachinaViva · Authentic viva assessments for the AI era.</p>
+    </footer>
 </div>
-{% else %}
 
-<p>You haven't submitted anything yet.</p>
-
-{% endif %}
-
-
-<!-- ========================================================= -->
-<!--   Submission Options                                       -->
-<!-- ========================================================= -->
-
-{% if assignment.allow_multiple_submissions or not latest_submission %}
-
-<div class="card">
-    <h3>Upload Your Work</h3>
-    <p class="subtle">Accepted formats: PDF, DOCX, TXT</p>
-
-    <form action="{% url 'submit_file' %}" method="POST"
-          enctype="multipart/form-data" class="submission-form">
-        {% csrf_token %}
-        <input type="file" id="file" name="file"
-               accept=".pdf,.docx,.txt" required>
-        <button type="submit" class="button" style="margin-top: 15px;">
-            Upload File
-        </button>
-    </form>
+<div class="preview-modal" data-preview-modal>
+    <div class="preview-dialog">
+        <div class="preview-head">
+            <span>Submission preview</span>
+            <button class="icon-btn" type="button" data-preview-close aria-label="Close preview">×</button>
+        </div>
+        <div class="preview-body">
+            <pre data-preview-content>(No preview available)</pre>
+        </div>
+    </div>
 </div>
-
-<div class="card">
-    <h3>Or Paste Your Text</h3>
-
-    <form action="{% url 'submit_text' %}" method="POST" class="submission-form">
-        {% csrf_token %}
-        <textarea id="text" name="text" rows="8" required></textarea>
-        <button type="submit" class="button" style="margin-top: 15px;">
-            Submit Text
-        </button>
-    </form>
-</div>
-
-{% else %}
-<p class="locked-msg">
-    This assignment allows only one submission, and you have already submitted your work.
-</p>
-{% endif %}
-
-
-
-{% endblock %}
+</body>
+</html>

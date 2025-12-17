@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission, VivaMessage, VivaSession
+from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback
 from datetime import datetime
+from django.utils.timezone import now
 from .viva import compute_integrity_flags
 import json
 
@@ -125,8 +126,9 @@ def assignment_view(request):
         # Latest submission per learner
         submission_map = {}
         for sub in submissions:
-            if sub.user_id not in submission_map:
-                submission_map[sub.user_id] = sub
+            key = str(sub.user_id)
+            if key not in submission_map:
+                submission_map[key] = sub
 
         nrps_url = request.session.get("nrps_url")
         roster = fetch_nrps_roster(nrps_url) if nrps_url else []
@@ -155,12 +157,13 @@ def assignment_view(request):
         students = []
         completed_count = 0
         flagged_count = 0
+        now_ts = now()
 
         for member in roster:
             if "learner" not in ",".join(member.get("roles", [])).lower():
                 continue
 
-            uid = member.get("user_id")
+            uid = str(member.get("user_id"))
             sub = submission_map.get(uid)
             session = None
             try:
@@ -214,8 +217,14 @@ def assignment_view(request):
             status = "pending"
             if session:
                 status = "completed" if session.ended_at else "in_progress"
+                # Remaining time
+                elapsed = (now_ts - session.started_at).total_seconds()
+                remaining = max(0, assignment.viva_duration_seconds - int(elapsed))
             elif sub:
                 status = "submitted"
+                remaining = assignment.viva_duration_seconds
+            else:
+                remaining = assignment.viva_duration_seconds
 
             submitted_at = (
                 sub.created_at.isoformat() if sub else None
@@ -226,6 +235,7 @@ def assignment_view(request):
                 "name": member.get("sortable_name", uid),
                 "submission_id": sub.id if sub else None,
                 "status": status,
+                "remaining_seconds": remaining,
                 "submitted_at": submitted_at,
                 "flags": flags,
                 "viva": viva_payload,
@@ -267,9 +277,50 @@ def assignment_view(request):
         user_id=user_id
     ).order_by("-created_at")
 
+    latest = student_submissions.first() if student_submissions else None
+    session = None
+    status = "no_submission"
+    remaining_seconds = None
+    feedback = None
+    flags = []
+
+    if latest:
+        status = "submitted"
+        try:
+            session = latest.vivasession
+        except VivaSession.DoesNotExist:
+            session = None
+
+    if session:
+        elapsed = (now() - session.started_at).total_seconds()
+        duration = assignment.viva_duration_seconds
+        remaining_seconds = max(0, duration - int(elapsed))
+        status = "completed" if session.ended_at else "in_progress"
+        try:
+            feedback = session.vivafeedback
+        except VivaFeedback.DoesNotExist:
+            feedback = None
+        flags = compute_integrity_flags(session)
+
+    max_attempts = assignment.max_attempts or 1
+    existing_sessions = VivaSession.objects.filter(submission=latest).count() if latest else 0
+    attempts_left = max_attempts - existing_sessions if latest else max_attempts
+
+    feedback_visible = assignment.feedback_visibility == "immediate" and feedback
+
+    duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else None
+
     return render(request, "tool/student_submit.html", {
         "assignment": assignment,
         "user_id": user_id,
-        "latest_submission": student_submissions.first() if student_submissions else None,
+        "latest_submission": latest,
         "past_submissions": student_submissions,
+        "viva_status": status,
+        "remaining_seconds": remaining_seconds,
+        "feedback": feedback if feedback_visible else None,
+        "allow_student_report": assignment.allow_student_report,
+        "flags": flags,
+        "duration_minutes": duration_minutes,
+        "attempts_left": attempts_left,
+        "attempts_used": existing_sessions,
     })

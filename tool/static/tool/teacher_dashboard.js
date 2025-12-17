@@ -48,6 +48,21 @@ document.addEventListener("DOMContentLoaded", () => {
         tableNoteTop.textContent = `Roster: ${completed}/${total} completed · ${flagged} flagged · click a student to review.`;
     }
 
+    const startCountdowns = () => {
+        document.querySelectorAll("[data-remaining]").forEach(el => {
+            let secs = parseInt(el.dataset.remaining, 10);
+            const tick = () => {
+                if (secs < 0) return;
+                const m = Math.floor(secs / 60).toString().padStart(2, "0");
+                const s = (secs % 60).toString().padStart(2, "0");
+                el.textContent = `${m}:${s}`;
+                secs -= 1;
+            };
+            tick();
+            setInterval(tick, 1000);
+        });
+    };
+
     const formatDuration = (seconds) => {
         if (!seconds && seconds !== 0) return "Duration: —";
         const mins = Math.floor(seconds / 60);
@@ -343,4 +358,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
     populateSelect();
     attachRowHandlers();
+    startCountdowns();
 });
