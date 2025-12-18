@@ -57,7 +57,7 @@
                                     data-summary-cta
                                     data-start-url="{% url 'viva_start' latest_submission.id %}"
                                     data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
-                                {% if viva_status == "in_progress" %}Submission text{% else %}Start Viva{% endif %}
+                                {% if viva_status == "in_progress" %}Return to viva{% else %}Start Viva{% endif %}
                             </button>
                         {% endif %}
                     {% endif %}
@@ -180,7 +180,7 @@
                             type="button"
                             data-chat-cta
                             data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
-                        {% if viva_status == "in_progress" %}Submission text{% else %}Back to submission{% endif %}
+                        {% if viva_status == "in_progress" %}Submission text{% else %}Back{% endif %}
                     </button>
                 </div>
                 <div class="viva-chat-card">
@@ -189,6 +189,7 @@
                              data-viva-chat-window
                              data-initial-ai="... Before we begin: answer in your own words, keep replies concise, stay focused on your submission. The viva will start as soon as you respond to this message."></div>
                     </div>
+                    <div class="viva-files is-hidden" data-viva-files></div>
                     <div class="input-row viva-input">
                         <div class="input-shell">
                             <input type="text" placeholder="Type your response..." disabled data-viva-input>
@@ -262,5 +263,6 @@
     </div>
 </div>
 <script id="session-histories-data" type="application/json">{{ session_histories_json|safe }}</script>
+<script id="session-files-data" type="application/json">{{ session_files_json|safe }}</script>
 </body>
 </html>

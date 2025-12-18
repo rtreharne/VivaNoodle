@@ -365,6 +365,17 @@ def assignment_view(request):
     duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else None
 
     session_histories_json = json.dumps(session_histories, default=str)
+    session_files_json = json.dumps({
+        sid: [
+            {
+                "submission_id": entry["submission_id"],
+                "file_name": entry["file_name"],
+                "comment": entry["comment"],
+            }
+            for entry in entries if entry.get("included")
+        ]
+        for sid, entries in session_links.items()
+    }, default=str)
 
     return render(request, "tool/student_submit.html", {
         "assignment": assignment,
@@ -383,5 +394,6 @@ def assignment_view(request):
         "session": active_session,
         "viva_sessions": sessions,
         "session_histories_json": session_histories_json,
+        "session_files_json": session_files_json,
         "submissions_total_size": submissions_total_size,
     })
