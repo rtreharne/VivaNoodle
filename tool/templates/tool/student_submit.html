@@ -10,7 +10,13 @@
     <script defer src="{% static 'tool/student_dashboard.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
-<div class="page">
+<div class="page"
+     data-viva-status="{{ viva_status|default:'pending' }}"
+     {% if session %}data-viva-session-id="{{ session.id }}"{% endif %}
+     data-viva-duration="{{ assignment.viva_duration_seconds|default:600 }}"
+     data-attempts-left="{{ attempts_left|default:0 }}"
+     data-attempts-used="{{ attempts_used|default:0 }}"
+     data-feedback-visibility="{{ assignment.feedback_visibility|default:'immediate' }}">
 
     <header class="nav">
         <div class="brand">
@@ -19,6 +25,10 @@
         </div>
         <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
         <div class="nav-actions">
+            <span class="badge viva-nav-timer is-hidden"
+                  data-viva-timer
+                  data-viva-minutes="{{ duration_minutes|default:10 }}"
+                  data-viva-seconds="{{ remaining_seconds|default_if_none:0 }}">00:00</span>
             <button class="view-btn ghost layout-toggle-btn" type="button" data-layout-toggle aria-label="Toggle layout">
                 <span class="layout-icon layout-columns" aria-hidden="true"></span>
                 <span class="layout-icon layout-rows is-hidden" aria-hidden="true"></span>
@@ -32,95 +42,133 @@
         <div class="settings-grid">
             <div class="settings-form-card" data-viva-summary-card>
                 <div class="settings-card-head">
-                    <h3 class="settings-title">Submission & Viva</h3>
-                    {% if viva_status == "in_progress" %}
-                        <div class="pill warn">In progress</div>
-                    {% elif viva_status == "completed" %}
-                        <div class="pill yes">Completed</div>
-                    {% elif viva_status == "submitted" %}
-                        <div class="pill neutral">Submitted</div>
-                    {% else %}
-                        <div class="pill no">Pending</div>
+                    <h3 class="settings-title">Viva Dashboard</h3>
+                    <div class="meta attempts-left-meta" data-attempts-meta style="margin-top:4px;">
+                        {% if attempts_left > 0 %}
+                            <span data-attempts-left>{{ attempts_left }}</span> viva attempt{% if attempts_left != 1 %}s{% endif %} left
+                        {% else %}
+                            No viva attempts remaining
+                        {% endif %}
+                    </div>
+                    {% if latest_submission %}
+                        {% if viva_status == "in_progress" or viva_status != "completed" or attempts_left|default:0 > 0 %}
+                            <button class="control-btn ghost"
+                                    type="button"
+                                    data-summary-cta
+                                    data-start-url="{% url 'viva_start' latest_submission.id %}"
+                                    data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
+                                {% if viva_status == "in_progress" %}Submission text{% else %}Start Viva{% endif %}
+                            </button>
+                        {% endif %}
                     {% endif %}
                 </div>
 
                 <div class="settings-row split">
                     <div>
-                        <label>Viva</label>
-                        {% if latest_submission %}
-                            {% if viva_status == "in_progress" %}
-                                {% if attempts_left > 0 %}
-                                    <div class="meta">In progress (attempt {{ attempts_used }} of {{ assignment.max_attempts|default:1 }})</div>
-                                {% endif %}
-                                {% if remaining_seconds %}
-                                    <div class="meta">Time remaining: <span data-remaining="{{ remaining_seconds|default:0 }}"></span></div>
-                                {% endif %}
-                            {% elif viva_status == "completed" %}
+                    {% if latest_submission %}
+                        {% if viva_status == "in_progress" %}
+                            {% if attempts_left > 0 %}
+                                <div class="meta">In progress (attempt {{ attempts_used }} of {{ assignment.max_attempts|default:1 }})</div>
+                            {% endif %}
+                            {% if remaining_seconds %}
+                                <div class="meta">Time remaining: <span data-remaining="{{ remaining_seconds|default:0 }}"></span></div>
+                            {% endif %}
+                        {% elif viva_status == "completed" %}
+                            {% if session %}
                                 <div class="viva-action">
-                                    <a class="control-btn" href="{% url 'viva_summary' latest_submission.vivasession.id %}">View summary</a>
-                                </div>
-                                {% if attempts_left > 0 %}
-                                    <div class="viva-action">
-                                        <button class="control-btn throb-btn" type="button" data-start-viva data-start-url="{% url 'viva_start' latest_submission.id %}">Start another attempt</button>
-                                        <div class="meta">{{ attempts_left }} attempt{% if attempts_left != 1 %}s{% endif %} left</div>
-                                    </div>
-                                {% endif %}
-                            {% else %}
-                                <div class="viva-action">
-                                    <button class="control-btn throb-btn" type="button" data-start-viva data-start-url="{% url 'viva_start' latest_submission.id %}">Begin viva</button>
-                                    {% if attempts_left is not None %}
-                                        <div class="meta">{{ attempts_left }} attempt{% if attempts_left != 1 %}s{% endif %} left</div>
-                                    {% endif %}
+                                    <a class="control-btn" href="{% url 'viva_summary' session.id %}">View summary</a>
                                 </div>
                             {% endif %}
-                        {% else %}
-                            <div class="meta">Submit your work to start the viva.</div>
                         {% endif %}
-                    </div>
+                    {% else %}
+                        <div class="meta">Submit your work to start the viva.</div>
+                    {% endif %}
+                    {% if viva_sessions %}
+                        <div class="viva-action" style="margin-top:8px;">
+                            <label class="meta" style="display:block; margin-bottom:6px;">Previous viva attempts</label>
+                            <div class="attempt-table">
+                                {% for vs in viva_sessions %}
+                                    <div class="attempt-row">
+                                        <span class="meta">Attempt {{ forloop.counter }} · {{ vs.started_at|date:"Y-m-d H:i" }}</span>
+                                        <span class="attempt-actions">
+                                            <a class="link view-attempt" href="#" data-view-session="{{ vs.id }}">View</a>
+                                        </span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
                 </div>
 
-                {% if latest_submission %}
-                    <div class="settings-row">
-                        <label>Latest submission</label>
-                        <div class="meta">Submitted on {{ latest_submission.created_at|date:"Y-m-d H:i" }}</div>
-                        {% if latest_submission.file %}
-                            <div class="meta" style="margin-top:6px;">File:
-                                <a class="link file-preview"
-                                   href="#"
-                                   data-preview-text="{{ latest_submission.comment|default_if_none:''|escapejs }}">
-                                    {{ latest_submission.file.name|cut:"submissions/"|cut:"submission/"|default:"uploaded file" }}
-                                </a>
+                <div class="settings-row">
+                    <label>Your uploads</label>
+                    {% if submission_payloads %}
+                        <div class="submission-table-wrap" data-submission-list {% if session %}data-active-session="{{ session.id }}"{% endif %}>
+                            <div class="submission-table-header">
+                                <span>File</span>
+                                <span>Include</span>
+                                <span>Actions</span>
                             </div>
-                        {% endif %}
+                            <div class="submission-table-body">
+                                {% for sub in submission_payloads %}
+                                    <div class="submission-row {% cycle 'row-alt' '' %}"
+                                         data-submission-id="{{ sub.id }}"
+                                         data-included="{{ sub.included|yesno:'1,0' }}"
+                                         data-file-size="{{ sub.file_size|default:0 }}"
+                                         data-start-url="{% url 'viva_start' sub.id %}">
+                                        <div class="submission-cell file-name">
+                                            {{ sub.file_name|cut:"submissions/"|cut:"submission/"|default:"uploaded file"|truncatechars:40 }}
+                                            <div class="meta">
+                                                <a class="link file-preview"
+                                                   href="#"
+                                                   data-preview-text="{{ sub.comment|default_if_none:''|escapejs }}">
+                                                    Preview text
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div class="submission-cell">
+                                            <label class="slider-toggle" aria-label="Include in viva">
+                                                <input type="checkbox" data-toggle-include {% if sub.included %}checked{% endif %}>
+                                                <span class="slider-track">
+                                                    <span class="slider-thumb"></span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <div class="submission-cell submission-actions">
+                                            {% if sub.can_delete %}
+                                                <button class="icon-btn danger" type="button" data-delete-submission="{{ sub.id }}">Delete</button>
+                                            {% else %}
+                                                <span class="meta muted">Linked to a viva</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="meta">No uploads yet. Add files below.</div>
+                    {% endif %}
+                </div>
 
-                        {% if assignment.allow_multiple_submissions %}
-                            <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form" style="margin-top:16px;">
-                                {% csrf_token %}
-                                <label class="meta" style="display:block; margin-bottom:6px;">Re-upload</label>
-                                <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" required>
-                                <div class="meta">Accepted formats: PDF, DOCX, TXT</div>
-                                <button type="submit" class="control-btn submit-btn-spaced" style="margin-top:10px;">Re-upload</button>
-                            </form>
-                        {% endif %}
+                {% if attempts_left|default:0 > 0 %}
+                    <div class="settings-row">
+                        <label>Upload files</label>
+                        <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form upload-inline" data-upload-form data-existing-count="{{ submission_payloads|length|default:0 }}" data-existing-size="{{ submissions_total_size|default:0 }}">
+                            {% csrf_token %}
+                            <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" multiple required>
+                            <button type="submit" class="control-btn">Upload</button>
+                        </form>
+                        <div class="meta upload-hint is-hidden" data-upload-hint></div>
                     </div>
+                {% endif %}
 
-                    {% if feedback %}
+                {% if feedback %}
                     <div class="settings-row">
                         <label>Feedback</label>
                         <div class="meta"><strong>Strengths:</strong> {{ feedback.strengths }}</div>
                         <div class="meta"><strong>Improvements:</strong> {{ feedback.improvements }}</div>
                         <div class="meta"><strong>Impression:</strong> {{ feedback.impression }}</div>
-                    </div>
-                    {% endif %}
-                {% else %}
-                    <div class="settings-row">
-                        <label>Upload a file</label>
-                        <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form">
-                            {% csrf_token %}
-                            <input type="file" id="file" name="file" accept=".pdf,.docx,.txt" required>
-                            <div class="meta">Accepted formats: PDF, DOCX, TXT</div>
-                            <button type="submit" class="control-btn submit-btn-spaced">Upload</button>
-                        </form>
                     </div>
                 {% endif %}
             </div>
@@ -128,27 +176,25 @@
             <div class="settings-form-card is-hidden" data-viva-chat-card>
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva chat</h3>
-                    <button class="control-btn ghost" type="button" data-back-summary>Back to details</button>
+                    <button class="control-btn ghost"
+                            type="button"
+                            data-chat-cta
+                            data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
+                        {% if viva_status == "in_progress" %}Submission text{% else %}Back to submission{% endif %}
+                    </button>
                 </div>
                 <div class="viva-chat-card">
-                    <div class="viva-chat-head">
-                        <div>
-                            <p class="tiny">Preview only</p>
-                            <div class="pill warn">Live chat coming soon</div>
-                        </div>
-                    </div>
-                    <div class="panel-chat viva-chat-window">
-                        <div class="bubble ai">Hi there, I'm your MachinaViva interviewer. Ready to discuss your submission?</div>
-                        <div class="bubble user">Yes, looking forward to it.</div>
-                        <div class="bubble ai">Great. I’ll ask focused questions based on your upload. Please answer in your own words.</div>
+                    <div class="viva-chat-wrap">
+                        <div class="panel-chat viva-chat-window"
+                             data-viva-chat-window
+                             data-initial-ai="... Before we begin: answer in your own words, keep replies concise, stay focused on your submission. The viva will start as soon as you respond to this message."></div>
                     </div>
                     <div class="input-row viva-input">
                         <div class="input-shell">
-                            <input type="text" placeholder="Type your response..." disabled>
+                            <input type="text" placeholder="Type your response..." disabled data-viva-input>
                         </div>
-                        <button class="control-btn primary" type="button" disabled>Send</button>
+                        <button class="send-btn viva-send-btn" type="button" disabled data-viva-send>Send</button>
                     </div>
-                    <p class="meta" style="margin-top:8px;">Chat is a placeholder right now. When live, it will stay on this page without a refresh.</p>
                 </div>
             </div>
 
@@ -215,5 +261,6 @@
         </div>
     </div>
 </div>
+<script id="session-histories-data" type="application/json">{{ session_histories_json|safe }}</script>
 </body>
 </html>

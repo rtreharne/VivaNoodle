@@ -25,6 +25,7 @@ urlpatterns = [
     # Student Submission
     path("submit_text/", views.submit_text, name="submit_text"),
     path("submit_file/", views.submit_file, name="submit_file"),
+    path("submission/<int:submission_id>/delete/", views.delete_submission, name="delete_submission"),
     path("submission/<int:submission_id>/", views.submission_status, name="submission_status"),
 
     # nprs
@@ -35,6 +36,7 @@ urlpatterns = [
     path("viva/start/<int:submission_id>/", views.viva_start, name="viva_start"),
     path("viva/session/<int:session_id>/", views.viva_session, name="viva_session"),
     path("viva/send/", views.viva_send_message, name="viva_send_message"),
+    path("viva/toggle_submission/", views.viva_toggle_submission, name="viva_toggle_submission"),
     path("viva/log/", views.viva_log_event, name="viva_log_event"),
     path("viva/summary/<int:session_id>/", views.viva_summary, name="viva_summary"),
     path("viva/logs/<int:session_id>/", views.viva_logs, name="viva_logs"),

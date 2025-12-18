@@ -64,13 +64,15 @@ class Submission(models.Model):
         return f"{self.user_id} → {self.assignment.title}"
     
 class VivaSession(models.Model):
-    submission = models.OneToOneField(Submission, on_delete=models.CASCADE)
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="viva_sessions")
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(null=True, blank=True)  # optional
+    feedback_text = models.TextField(blank=True)
+    rating = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
-        return f"Viva for {self.submission.user_id}"
+        return f"Viva for {self.submission.user_id} (session {self.id})"
 
 
 class VivaMessage(models.Model):
@@ -78,6 +80,15 @@ class VivaMessage(models.Model):
     sender = models.CharField(max_length=20)  # "student" or "ai"
     text = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class VivaSessionSubmission(models.Model):
+    session = models.ForeignKey(VivaSession, on_delete=models.CASCADE, related_name="submission_links")
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="viva_links")
+    included = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("session", "submission")
 
 
 class InteractionLog(models.Model):
@@ -128,5 +139,3 @@ class VivaFeedback(models.Model):
 
     def __str__(self):
         return f"Feedback for session {self.session.id}"
-
-

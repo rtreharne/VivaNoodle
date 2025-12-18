@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback
+from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback, VivaSessionSubmission
 from datetime import datetime
 from django.utils.timezone import now
 from .viva import compute_integrity_flags
@@ -166,10 +166,8 @@ def assignment_view(request):
             uid = str(member.get("user_id"))
             sub = submission_map.get(uid)
             session = None
-            try:
-                session = sub.vivasession if sub else None
-            except VivaSession.DoesNotExist:
-                session = None
+            if sub:
+                session = VivaSession.objects.filter(submission=sub).order_by("-started_at").first()
 
             flags = compute_integrity_flags(session) if session else []
 
@@ -279,6 +277,7 @@ def assignment_view(request):
 
     latest = student_submissions.first() if student_submissions else None
     session = None
+    active_session = None
     status = "no_submission"
     remaining_seconds = None
     feedback = None
@@ -286,10 +285,8 @@ def assignment_view(request):
 
     if latest:
         status = "submitted"
-        try:
-            session = latest.vivasession
-        except VivaSession.DoesNotExist:
-            session = None
+        active_session = VivaSession.objects.filter(submission=latest, ended_at__isnull=True).order_by("-started_at").first()
+        session = active_session or VivaSession.objects.filter(submission=latest).order_by("-started_at").first()
 
     if session:
         elapsed = (now() - session.started_at).total_seconds()
@@ -303,18 +300,78 @@ def assignment_view(request):
         flags = compute_integrity_flags(session)
 
     max_attempts = assignment.max_attempts or 1
-    existing_sessions = VivaSession.objects.filter(submission=latest).count() if latest else 0
-    attempts_left = max_attempts - existing_sessions if latest else max_attempts
+    sessions = VivaSession.objects.filter(
+        submission__assignment=assignment,
+        submission__user_id=user_id
+    ).order_by("-started_at") if latest else VivaSession.objects.none()
+
+    session_histories = {}
+    session_links = {}
+    active_include_map = {}
+    if sessions:
+        all_messages = VivaMessage.objects.filter(session__in=sessions).order_by("timestamp")
+        msgs_by_session = {}
+        for m in all_messages:
+            msgs_by_session.setdefault(m.session_id, []).append({
+                "sender": m.sender,
+                "text": m.text,
+                "ts": m.timestamp.isoformat(),
+            })
+        link_qs = VivaSessionSubmission.objects.filter(session__in=sessions).select_related("submission")
+        for link in link_qs:
+            session_links.setdefault(link.session_id, []).append({
+                "submission_id": link.submission_id,
+                "file_name": link.submission.file.name if link.submission.file else "",
+                "included": link.included,
+                "comment": link.submission.comment,
+            })
+            if active_session and link.session_id == active_session.id:
+                active_include_map[link.submission_id] = link.included
+        for s in sessions:
+            history = msgs_by_session.get(s.id, [])
+            if s.feedback_text:
+                history.append({
+                    "sender": "ai",
+                    "text": s.feedback_text,
+                    "ts": s.ended_at.isoformat() if s.ended_at else now().isoformat(),
+                })
+            session_histories[s.id] = history
+
+    submission_payloads = []
+    used_as_primary = set(VivaSession.objects.filter(
+        submission__assignment=assignment,
+        submission__user_id=user_id
+    ).values_list("submission_id", flat=True))
+
+    submissions_total_size = 0
+    for sub in student_submissions:
+        file_size = sub.file.size if sub.file else 0
+        submissions_total_size += file_size
+        submission_payloads.append({
+            "id": sub.id,
+            "file_name": sub.file.name if sub.file else "Uploaded text",
+            "created_at": sub.created_at,
+            "comment": sub.comment,
+            "included": active_include_map.get(sub.id, True),
+            "can_delete": sub.id not in used_as_primary,
+            "file_size": file_size,
+        })
+
+    existing_sessions = sessions.count() if latest else 0
+    attempts_left = max(0, max_attempts - existing_sessions) if latest else max_attempts
 
     feedback_visible = assignment.feedback_visibility == "immediate" and feedback
 
     duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else None
+
+    session_histories_json = json.dumps(session_histories, default=str)
 
     return render(request, "tool/student_submit.html", {
         "assignment": assignment,
         "user_id": user_id,
         "latest_submission": latest,
         "past_submissions": student_submissions,
+        "submission_payloads": submission_payloads,
         "viva_status": status,
         "remaining_seconds": remaining_seconds,
         "feedback": feedback if feedback_visible else None,
@@ -323,4 +380,8 @@ def assignment_view(request):
         "duration_minutes": duration_minutes,
         "attempts_left": attempts_left,
         "attempts_used": existing_sessions,
+        "session": active_session,
+        "viva_sessions": sessions,
+        "session_histories_json": session_histories_json,
+        "submissions_total_size": submissions_total_size,
     })
