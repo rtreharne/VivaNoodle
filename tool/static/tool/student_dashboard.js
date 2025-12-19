@@ -75,15 +75,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const sessionHistories = historiesScript ? JSON.parse(historiesScript.textContent || "{}") : {};
     const filesScript = document.getElementById("session-files-data");
     const sessionFiles = filesScript ? JSON.parse(filesScript.textContent || "{}") : {};
+    const eventTracking = pageEl?.dataset.eventTracking === "true";
+    const keystrokeTracking = pageEl?.dataset.keystrokeTracking === "true";
+    const arrhythmicTracking = pageEl?.dataset.arrhythmicTyping === "true";
     const summaryCard = document.querySelector("[data-viva-summary-card]");
     const summaryPanel = summaryCard;
     const chatCard = document.querySelector("[data-viva-chat-card]");
     const settingsGrid = document.querySelector(".settings-grid");
     const backBtn = document.querySelector("[data-back-summary]");
+    const backDashboardBtn = document.querySelector("[data-back-dashboard]");
     const startVivaBtns = document.querySelectorAll("[data-start-viva]");
     const startVivaBlocks = document.querySelectorAll("[data-start-viva-block]");
     const summaryCta = document.querySelector("[data-summary-cta]");
-    const chatCta = document.querySelector("[data-chat-cta]");
     const backToVivaBtns = document.querySelectorAll("[data-back-to-viva]");
     const attemptsMeta = document.querySelector("[data-attempts-meta]");
     const layoutToggle = document.querySelector("[data-layout-toggle]");
@@ -121,6 +124,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const maxFilesTotal = 10;
     const maxTotalBytes = 50 * 1024 * 1024;
     let uploadSizeInvalid = false;
+    const unlimitedAttempts = pageEl?.dataset.unlimitedAttempts === "true";
+    const hasUnlimitedAttempts = () => unlimitedAttempts || attemptsLeft < 0;
+    const logQueue = [];
+    let logTimer = null;
+    let lastArrhythmicLog = 0;
 
     const setUploadHint = (msg) => {
         if (!uploadHint) return;
@@ -133,20 +141,183 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const getSubmissionRows = () => submissionList ? Array.from(submissionList.querySelectorAll("[data-submission-id]")) : [];
-    const renderSessionFiles = (sessionId) => {
-        if (!vivaFilesBox) return;
-        const files = sessionFiles[String(sessionId)] || [];
-        vivaFilesBox.innerHTML = "";
-        if (!files.length) {
-            vivaFilesBox.classList.add("is-hidden");
-            return;
+    const shouldLogEvent = (eventType) => {
+        if (["blur", "focus", "visibility", "paste", "copy"].includes(eventType)) {
+            return eventTracking;
         }
+        if (eventType === "arrhythmic_typing") {
+            return arrhythmicTracking;
+        }
+        if (eventType === "typing_cadence") {
+            return keystrokeTracking;
+        }
+        return false;
+    };
+
+    const queueLog = (eventType, eventData = {}) => {
+        if (!shouldLogEvent(eventType)) return;
+        if (!vivaSessionActive || !vivaSessionId) return;
+        const payload = {
+            event_type: eventType,
+            event_data: {
+                ...eventData,
+                client_ts: new Date().toISOString(),
+            },
+        };
+        if (logQueue.length > 50) logQueue.shift();
+        logQueue.push(payload);
+        if (!logTimer) {
+            logTimer = setTimeout(flushLogs, 800);
+        }
+    };
+
+    const flushLogs = async (useKeepalive = false) => {
+        if (logTimer) {
+            clearTimeout(logTimer);
+            logTimer = null;
+        }
+        if (!vivaSessionActive || !vivaSessionId || !logQueue.length) return;
+        const batch = logQueue.splice(0, 20);
+        try {
+            await fetch("/viva/log/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                keepalive: useKeepalive,
+                body: JSON.stringify({
+                    session_id: vivaSessionId,
+                    events: batch,
+                }),
+            });
+        } catch (err) {
+            // Re-queue on failure, best-effort
+            logQueue.unshift(...batch);
+        }
+        if (logQueue.length) {
+            logTimer = setTimeout(flushLogs, 1000);
+        }
+    };
+
+    const getSubmissionRows = () => submissionList ? Array.from(submissionList.querySelectorAll("[data-submission-id]")) : [];
+    const buildSelectedFiles = () => {
+        return getSubmissionRows().reduce((acc, row) => {
+            const toggle = row.querySelector("[data-toggle-include]");
+            if (!toggle?.checked) return acc;
+            acc.push({
+                file_name: row.dataset.fileName || row.querySelector(".file-name")?.textContent?.trim() || "Uploaded file",
+                comment: row.dataset.comment || "",
+            });
+            return acc;
+        }, []);
+    };
+    const formatAttemptDate = (iso) => {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const min = String(d.getMinutes()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+    };
+    const ensureAttemptTable = () => {
+        let table = summaryCard?.querySelector(".attempt-table");
+        if (table) return table;
+        const column = summaryCard?.querySelector(".settings-row.split > div");
+        if (!column) return null;
+        const wrapper = document.createElement("div");
+        wrapper.className = "viva-action";
+        wrapper.style.marginTop = "8px";
+        const label = document.createElement("label");
+        label.className = "meta";
+        label.style.display = "block";
+        label.style.marginBottom = "6px";
+        label.textContent = "Previous viva attempts";
+        table = document.createElement("div");
+        table.className = "attempt-table";
+        wrapper.appendChild(label);
+        wrapper.appendChild(table);
+        column.appendChild(wrapper);
+        return table;
+    };
+    const refreshAttemptLabels = () => {
+        const table = ensureAttemptTable();
+        if (!table) return;
+        const rows = Array.from(table.querySelectorAll("[data-attempt-row]"));
+        const total = rows.length;
+        rows.forEach((row, idx) => {
+            const label = row.querySelector(".meta");
+            const stamp = formatAttemptDate(row.dataset.startedAt || "");
+            const number = total - idx;
+            if (label) {
+                label.textContent = `Attempt ${number}` + (stamp ? ` · ${stamp}` : "");
+            }
+        });
+    };
+    const bindViewAttempt = (link) => {
+        if (!link || link.dataset.bound) return;
+        link.dataset.bound = "true";
+        link.addEventListener("click", (e) => {
+            e.preventDefault();
+            const sessionId = link.dataset.viewSession;
+            if (sessionId) showHistory(sessionId);
+        });
+    };
+    const appendAttemptRow = (sessionId, startedAt) => {
+        const table = ensureAttemptTable();
+        if (!table || !sessionId) return;
+        if (table.querySelector(`[data-view-session="${sessionId}"]`)) return;
+        const row = document.createElement("div");
+        row.className = "attempt-row";
+        row.dataset.attemptRow = "true";
+        row.dataset.startedAt = startedAt || new Date().toISOString();
+        const label = document.createElement("span");
+        label.className = "meta";
+        const actions = document.createElement("span");
+        actions.className = "attempt-actions";
+        const link = document.createElement("a");
+        link.className = "link view-attempt";
+        link.href = "#";
+        link.dataset.viewSession = sessionId;
+        link.textContent = "View";
+        actions.appendChild(link);
+        row.appendChild(label);
+        row.appendChild(actions);
+        table.prepend(row);
+        bindViewAttempt(link);
+        refreshAttemptLabels();
+    };
+    const captureChatHistory = () => {
+        if (!vivaChatWindow) return [];
+        return Array.from(vivaChatWindow.querySelectorAll(".bubble"))
+            .filter((bubble) => !bubble.classList.contains("thinking") && !bubble.classList.contains("rating-bubble"))
+            .map((bubble) => {
+                const isAi = bubble.classList.contains("ai");
+                return { sender: isAi ? "ai" : "student", text: bubble.textContent || "" };
+            });
+    };
+    const renderSessionFiles = (sessionId, allowFallback = false) => {
+        if (!vivaFilesBox) return;
+        let files = sessionFiles[String(sessionId)] || [];
+        if (!files.length && allowFallback) {
+            files = buildSelectedFiles();
+        }
+        vivaFilesBox.innerHTML = "";
         const title = document.createElement("div");
         title.className = "meta";
         title.style.marginBottom = "6px";
         title.textContent = "Files used for this viva:";
         vivaFilesBox.appendChild(title);
+
+        if (!files.length) {
+            const none = document.createElement("div");
+            none.className = "meta";
+            none.textContent = "No files recorded for this viva.";
+            vivaFilesBox.appendChild(none);
+            vivaFilesBox.classList.remove("is-hidden");
+            return;
+        }
 
         files.forEach((f) => {
             const chip = document.createElement("div");
@@ -391,30 +562,32 @@ document.addEventListener("DOMContentLoaded", () => {
             block.classList.toggle("is-hidden", true);
         });
         startVivaBtns.forEach((btn) => {
-            btn.disabled = vivaSessionActive || (!vivaSessionActive && (includedCount === 0 || attemptsLeft <= 0 || !hasSubmissions));
+            btn.disabled = vivaSessionActive || (!vivaSessionActive && (includedCount === 0 || (!hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasSubmissions));
         });
         backToVivaBtns.forEach((btn) => {
             btn.classList.toggle("is-hidden", !vivaSessionActive);
         });
+        if (backDashboardBtn) {
+            backDashboardBtn.classList.toggle("is-hidden", vivaSessionActive);
+            backDashboardBtn.disabled = vivaSessionActive;
+        }
         if (summaryCta) {
             summaryCta.dataset.action = vivaSessionActive ? "resume" : "start";
             summaryCta.textContent = vivaSessionActive ? "Return to viva" : "Start Viva";
-            summaryCta.classList.toggle("is-hidden", (!vivaSessionActive && attemptsLeft <= 0) || !hasSubmissions);
-            summaryCta.disabled = (!vivaSessionActive && (includedCount === 0 || attemptsLeft <= 0 || !hasSubmissions));
-        }
-        if (chatCta) {
-            chatCta.dataset.action = vivaSessionActive ? "preview" : "summary";
-            chatCta.textContent = vivaSessionActive ? "Submission text" : "Back";
+            summaryCta.classList.toggle("is-hidden", (!vivaSessionActive && !hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasSubmissions);
+            summaryCta.disabled = (!vivaSessionActive && (includedCount === 0 || (!hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasSubmissions));
         }
         if (attemptsMeta) {
-            if (attemptsLeft > 0) {
+            if (hasUnlimitedAttempts()) {
+                attemptsMeta.textContent = "Unlimited viva attempts";
+            } else if (attemptsLeft > 0) {
                 attemptsMeta.textContent = `${attemptsLeft} viva attempt${attemptsLeft !== 1 ? "s" : ""} left`;
             } else {
                 attemptsMeta.textContent = "No viva attempts remaining";
             }
         }
         uploadForms.forEach((form) => {
-            form.classList.toggle("is-hidden", attemptsLeft <= 0);
+            form.classList.toggle("is-hidden", (!hasUnlimitedAttempts() && attemptsLeft <= 0));
         });
         const sizeOk = validateUploadSelection();
         if (!uploadSizeInvalid) {
@@ -549,6 +722,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Completed a run; allow another attempt
             updateVivaControls();
         }
+        return closingSessionId;
     };
 
     const respondPlaceholder = () => {
@@ -588,7 +762,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 addVivaBubble("user", text);
             }
             const feedbackText = feedbackVisibility === "immediate" ? feedbackPlaceholder : null;
-            await endSession(text, feedbackText);
+            const sessionId = await endSession(text, feedbackText);
+            if (sessionId) {
+                const historySnapshot = captureChatHistory();
+                if (feedbackVisibility === "immediate") {
+                    historySnapshot.push({ sender: "ai", text: feedbackPlaceholder });
+                }
+                sessionHistories[String(sessionId)] = historySnapshot;
+                sessionFiles[String(sessionId)] = buildSelectedFiles();
+                appendAttemptRow(String(sessionId));
+            }
             vivaInput.value = "";
             vivaSend.textContent = "Submitted";
             vivaSend.disabled = true;
@@ -670,7 +853,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 addVivaBubble(sender, m.text || "");
             });
         }
-        renderSessionFiles(activeId);
+        renderSessionFiles(activeId, true);
         setVivaInputDisabled(false);
         vivaInputRow?.classList.remove("is-hidden");
         navBar?.classList.add("viva-active");
@@ -690,6 +873,37 @@ document.addEventListener("DOMContentLoaded", () => {
             handleVivaSend();
         }
     });
+    vivaInput?.addEventListener("paste", (e) => {
+        if (!eventTracking) return;
+        const text = e.clipboardData?.getData("text") || "";
+        queueLog("paste", { length: text.length });
+    });
+    if (vivaInput && arrhythmicTracking) {
+        let lastKeyTs = null;
+        const intervals = [];
+        vivaInput.addEventListener("keydown", () => {
+            if (!vivaSessionActive || !vivaSessionId) return;
+            const now = Date.now();
+            if (lastKeyTs) {
+                const interval = now - lastKeyTs;
+                intervals.push(interval);
+                if (intervals.length > 8) intervals.shift();
+                if (intervals.length >= 6) {
+                    const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+                    const spike = interval > avg * 3 && interval > 1200;
+                    const rush = interval < avg / 3 && avg > 120;
+                    if ((spike || rush) && now - lastArrhythmicLog > 15000) {
+                        lastArrhythmicLog = now;
+                        queueLog("arrhythmic_typing", {
+                            interval_ms: Math.round(interval),
+                            avg_ms: Math.round(avg),
+                        });
+                    }
+                }
+            }
+            lastKeyTs = now;
+        });
+    }
 
     const showChat = (scroll = false) => {
         if (!summaryCard || !chatCard) return;
@@ -699,6 +913,7 @@ document.addEventListener("DOMContentLoaded", () => {
             vivaInputRow?.classList.remove("is-hidden");
             playVivaIntro();
         }
+        renderSessionFiles(vivaSessionId || lastSessionId || initialSessionId, true);
         if (scroll) chatCard.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
@@ -735,7 +950,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startVivaBtns.forEach(btn => {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
-            if (attemptsLeft <= 0) return;
+            if (!hasUnlimitedAttempts() && attemptsLeft <= 0) return;
             if (!validateUploadSelection()) return;
             if (!collectSelectedSubmissionIds().length) {
                 setUploadHint("Select at least one file to start a viva.");
@@ -743,8 +958,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             resetVivaForNewAttempt();
             updateVivaControls();
-            const startUrl = btn.dataset.startUrl || startUrlDefault;
-            ensureSession(startUrl);
             showChat(false);
         });
     });
@@ -775,6 +988,12 @@ document.addEventListener("DOMContentLoaded", () => {
             openSubmissionPreview();
         });
     }
+    if (backDashboardBtn) {
+        backDashboardBtn.addEventListener("click", () => {
+            showSummary();
+            summaryCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    }
 
     if (summaryCta) {
         summaryCta.addEventListener("click", (e) => {
@@ -782,7 +1001,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (action === "preview") {
                 openSubmissionPreview();
             } else if (action === "start") {
-                if (attemptsLeft <= 0) return;
+                if (!hasUnlimitedAttempts() && attemptsLeft <= 0) return;
                 if (!validateUploadSelection()) return;
                 if (!collectSelectedSubmissionIds().length) {
                     setUploadHint("Select at least one file to start a viva.");
@@ -790,21 +1009,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 resetVivaForNewAttempt();
                 updateVivaControls();
-                ensureSession(summaryCta.dataset.startUrl || startUrlDefault);
                 showChat(false);
             } else if (action === "resume") {
                 showActiveSession();
-            }
-        });
-    }
-
-    if (chatCta) {
-        chatCta.addEventListener("click", () => {
-            const action = chatCta.dataset.action;
-            if (action === "preview") {
-                openSubmissionPreview();
-            } else {
-                showSummary();
             }
         });
     }
@@ -830,13 +1037,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     updateStartUrlFromList();
 
-    document.querySelectorAll(".view-attempt").forEach((link) => {
-        link.addEventListener("click", (e) => {
-            e.preventDefault();
-            const sessionId = link.dataset.viewSession;
-            if (sessionId) showHistory(sessionId);
-        });
-    });
+    document.querySelectorAll(".view-attempt").forEach(bindViewAttempt);
 
     function validateUploadSelection() {
         if (!uploadForm || !uploadInput) return true;
@@ -876,6 +1077,32 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         validateUploadSelection();
     }
+
+    if (eventTracking) {
+        window.addEventListener("blur", () => queueLog("blur"));
+        window.addEventListener("focus", () => queueLog("focus"));
+        document.addEventListener("visibilitychange", () => {
+            queueLog("visibility", { state: document.visibilityState });
+        });
+        const isWithinAiBubble = (node) => {
+            if (!node) return false;
+            const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+            if (!el) return false;
+            return !!el.closest(".bubble.ai");
+        };
+        document.addEventListener("copy", () => {
+            const selection = window.getSelection?.();
+            const text = selection?.toString() || "";
+            if (!text) return;
+            const anchor = selection?.anchorNode;
+            const focus = selection?.focusNode;
+            if (!isWithinAiBubble(anchor) && !isWithinAiBubble(focus)) return;
+            queueLog("copy", { length: text.length, source: "ai" });
+        });
+    }
+    window.addEventListener("beforeunload", () => {
+        flushLogs(true);
+    });
 
     startCountdowns();
 });

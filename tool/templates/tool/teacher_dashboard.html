@@ -84,17 +84,21 @@
                         <div class="transcript-card">
                             <div class="transcript-head">
                                 <div>
-                                    <p class="tiny">Transcript review</p>
                                     <div class="name-row">
                                         <span>Student:</span>
                                         <select class="transcript-select" data-transcript-select>
                                             <option value="" selected disabled>Select a student</option>
                                         </select>
                                     </div>
+                                    <div class="name-row">
+                                        <span>Attempt:</span>
+                                        <select class="transcript-select" data-attempt-select>
+                                            <option value="" selected disabled>Select attempt</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="transcript-head-actions">
                                     <button class="icon-btn" data-transcript-back title="Back to roster">← Back to roster</button>
-                                    <div class="pill yes" data-transcript-status>—</div>
                                 </div>
                             </div>
                             <div class="transcript-meta">
@@ -104,6 +108,7 @@
                             <div class="transcript-chat" data-transcript-chat>
                                 <div class="bubble system">Select a student with a completed viva to view the transcript.</div>
                             </div>
+                            <div class="transcript-files" data-transcript-files></div>
                         </div>
 
                         <aside class="transcript-side">
@@ -112,18 +117,6 @@
                                 <ul class="event-list transcript-events" data-transcript-events>
                                     <li class="muted">No transcript selected.</li>
                                 </ul>
-                            </div>
-                            <div class="side-card">
-                                <p class="tiny">AI feedback to student</p>
-                                <div class="feedback-block transcript-feedback" data-transcript-feedback>
-                                    <p class="muted">Select a completed viva to see feedback.</p>
-                                </div>
-                            </div>
-                            <div class="side-card">
-                                <p class="tiny">AI summary for teacher</p>
-                                <div class="feedback-block transcript-summary" data-transcript-summary>
-                                    <p class="muted">Feedback will appear here.</p>
-                                </div>
                             </div>
                         </aside>
                     </div>
@@ -156,7 +149,14 @@
                         </div>
                         <div>
                             <label for="max_attempts">Attempts</label>
-                            <input type="number" id="max_attempts" name="max_attempts" min="1" max="5" step="1" value="{{ assignment.max_attempts|default:1 }}">
+                            <input type="number" id="max_attempts" name="max_attempts" min="1" max="5" step="1" value="{{ assignment.max_attempts|default:1 }}" {% if not assignment.max_attempts or assignment.max_attempts <= 0 %}disabled{% endif %}>
+                            <div class="unlimited-toggle">
+                                <span class="meta">Unlimited</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="unlimited_attempts" name="unlimited_attempts" {% if not assignment.max_attempts or assignment.max_attempts <= 0 %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                         </div>
                         <div>
                             <label for="viva_tone">Tone</label>
@@ -264,5 +264,33 @@
 
 <script id="dashboard-data" type="application/json">{{ dashboard_json|safe }}</script>
 <div class="save-toast" data-save-toast>Settings updated</div>
+<div class="preview-modal" data-preview-modal>
+    <div class="preview-dialog">
+        <div class="preview-head">
+            <span>Submission preview</span>
+            <button class="icon-btn" type="button" data-preview-close aria-label="Close preview">×</button>
+        </div>
+        <div class="preview-body">
+            <pre data-preview-content>(No preview available)</pre>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const unlimited = document.getElementById("unlimited_attempts");
+        const attempts = document.getElementById("max_attempts");
+        if (!unlimited || !attempts) return;
+        const toggle = () => {
+            attempts.disabled = unlimited.checked;
+            if (unlimited.checked) {
+                attempts.value = 0;
+            } else if (!attempts.value || Number(attempts.value) < 1) {
+                attempts.value = 1;
+            }
+        };
+        unlimited.addEventListener("change", toggle);
+        toggle();
+    })();
+</script>
 </body>
 </html>

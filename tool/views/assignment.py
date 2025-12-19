@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback, VivaSessionSubmission
+from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback, VivaSessionSubmission, InteractionLog
 from datetime import datetime
 from django.utils.timezone import now
 from .viva import compute_integrity_flags
@@ -50,13 +50,18 @@ def assignment_edit_save(request):
         pass
 
     # Attempts
-    max_attempts = request.POST.get("max_attempts")
-    try:
-        attempts_int = max(1, int(max_attempts))
-        assignment.max_attempts = attempts_int
-        assignment.allow_multiple_submissions = attempts_int > 1
-    except (TypeError, ValueError):
-        pass
+    unlimited_flag = request.POST.get("unlimited_attempts") == "on"
+    if unlimited_flag:
+        assignment.max_attempts = 0
+        assignment.allow_multiple_submissions = True
+    else:
+        max_attempts = request.POST.get("max_attempts")
+        try:
+            attempts_int = max(1, int(max_attempts))
+            assignment.max_attempts = attempts_int
+            assignment.allow_multiple_submissions = attempts_int > 1
+        except (TypeError, ValueError):
+            pass
 
     # Tone and feedback visibility
     assignment.viva_tone = request.POST.get("viva_tone", assignment.viva_tone)
@@ -165,52 +170,88 @@ def assignment_view(request):
 
             uid = str(member.get("user_id"))
             sub = submission_map.get(uid)
-            session = None
-            if sub:
-                session = VivaSession.objects.filter(submission=sub).order_by("-started_at").first()
+            sessions_qs = VivaSession.objects.filter(
+                submission__assignment=assignment,
+                submission__user_id=uid
+            ).order_by("-started_at")
+            active_session = sessions_qs.filter(ended_at__isnull=True).first()
+            latest_session = sessions_qs.first()
+            session = active_session or latest_session
 
-            flags = compute_integrity_flags(session) if session else []
+            flags = compute_integrity_flags(latest_session) if latest_session else []
 
-            viva_payload = None
-            if session:
-                msgs = VivaMessage.objects.filter(
-                    session=session
-                ).order_by("timestamp")
-                messages = [
-                    {
-                        "sender": m.sender,
-                        "text": m.text,
-                        "timestamp": m.timestamp.isoformat(),
-                    }
-                    for m in msgs
-                ]
+            viva_attempts = []
+            if sessions_qs.exists():
+                link_qs = VivaSessionSubmission.objects.filter(session__in=sessions_qs).select_related("submission")
+                links_by_session = {}
+                for link in link_qs:
+                    if not link.included:
+                        continue
+                    links_by_session.setdefault(link.session_id, []).append({
+                        "submission_id": link.submission_id,
+                        "file_name": link.submission.file.name if link.submission.file else "",
+                        "comment": link.submission.comment,
+                    })
+                for sess in sessions_qs:
+                    logs_qs = InteractionLog.objects.filter(submission=sess.submission).order_by("timestamp")
+                    logs_by_session = logs_qs.filter(event_data__session_id=sess.id)
+                    if logs_by_session.exists():
+                        logs_qs = logs_by_session
+                    else:
+                        logs_qs = logs_qs.filter(timestamp__gte=sess.started_at)
+                        if sess.ended_at:
+                            logs_qs = logs_qs.filter(timestamp__lte=sess.ended_at)
+                    events = [
+                        {
+                            "type": log.event_type,
+                            "timestamp": log.timestamp.isoformat(),
+                            "data": log.event_data,
+                        }
+                        for log in logs_qs
+                    ]
+                    msgs = VivaMessage.objects.filter(
+                        session=sess
+                    ).order_by("timestamp")
+                    messages = [
+                        {
+                            "sender": m.sender,
+                            "text": m.text,
+                            "timestamp": m.timestamp.isoformat(),
+                        }
+                        for m in msgs
+                    ]
 
-                try:
-                    fb = session.vivafeedback
-                    feedback = {
-                        "strengths": fb.strengths,
-                        "improvements": fb.improvements,
-                        "misconceptions": fb.misconceptions,
-                        "impression": fb.impression,
-                    }
-                except Exception:
-                    feedback = None
+                    try:
+                        fb = sess.vivafeedback
+                        feedback = {
+                            "strengths": fb.strengths,
+                            "improvements": fb.improvements,
+                            "misconceptions": fb.misconceptions,
+                            "impression": fb.impression,
+                        }
+                    except Exception:
+                        feedback = None
 
-                duration_seconds = session.duration_seconds
-                if not duration_seconds and session.ended_at:
-                    duration_seconds = int(
-                        (session.ended_at - session.started_at).total_seconds()
-                    )
+                    duration_seconds = sess.duration_seconds
+                    if not duration_seconds and sess.ended_at:
+                        duration_seconds = int(
+                            (sess.ended_at - sess.started_at).total_seconds()
+                        )
 
-                viva_payload = {
-                    "session_id": session.id,
-                    "assignment_title": assignment.title,
-                    "duration_seconds": duration_seconds,
-                    "messages": messages,
-                    "feedback": feedback,
-                    "flags": flags,
-                    "created_at": session.started_at.isoformat(),
-                }
+                    viva_attempts.append({
+                        "session_id": sess.id,
+                        "assignment_title": assignment.title,
+                        "duration_seconds": duration_seconds,
+                        "messages": messages,
+                        "feedback": feedback,
+                        "flags": compute_integrity_flags(sess),
+                        "created_at": sess.started_at.isoformat(),
+                        "status": "completed" if sess.ended_at else "in_progress",
+                        "files": links_by_session.get(sess.id, []),
+                        "events": events,
+                    })
+
+            viva_payload = viva_attempts[0] if viva_attempts else None
 
             status = "pending"
             if session:
@@ -237,6 +278,7 @@ def assignment_view(request):
                 "submitted_at": submitted_at,
                 "flags": flags,
                 "viva": viva_payload,
+                "vivas": viva_attempts,
             })
 
             if status == "completed":
@@ -299,7 +341,7 @@ def assignment_view(request):
             feedback = None
         flags = compute_integrity_flags(session)
 
-    max_attempts = assignment.max_attempts or 1
+    max_attempts = assignment.max_attempts
     sessions = VivaSession.objects.filter(
         submission__assignment=assignment,
         submission__user_id=user_id
@@ -358,7 +400,10 @@ def assignment_view(request):
         })
 
     existing_sessions = sessions.count() if latest else 0
-    attempts_left = max(0, max_attempts - existing_sessions) if latest else max_attempts
+    if max_attempts and max_attempts > 0:
+        attempts_left = max(0, max_attempts - existing_sessions) if latest else max_attempts
+    else:
+        attempts_left = -1  # unlimited
 
     feedback_visible = assignment.feedback_visibility == "immediate" and feedback
 

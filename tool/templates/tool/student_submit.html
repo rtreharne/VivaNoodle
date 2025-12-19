@@ -6,7 +6,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MachinaViva | Student Dashboard</title>
-    <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    <style>
+        /* Minimal critical styles to prevent flash */
+        html.preload, body.preload {
+            background: #0d1224;
+            color: #e2e8f0;
+        }
+        html.preload .page {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+    </style>
+    <link id="main-css" rel="preload" as="style" href="{% static 'tool/home.css' %}?v={{ cachebust }}" onload="this.rel='stylesheet'; document.documentElement.classList.remove('preload'); document.body.classList.remove('preload');">
+    <noscript>
+        <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    </noscript>
+    <script>
+        // Ensure preload class is removed even if load fires late
+        document.documentElement.classList.add('preload');
+        document.body.classList.add('preload');
+        const finishPreload = () => {
+            document.documentElement.classList.remove('preload');
+            document.body.classList.remove('preload');
+        };
+        const cssLink = document.getElementById('main-css');
+        if (cssLink && cssLink.sheet) finishPreload();
+        else cssLink?.addEventListener('load', finishPreload);
+        window.addEventListener('load', finishPreload);
+    </script>
     <script defer src="{% static 'tool/student_dashboard.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
@@ -16,7 +43,11 @@
      data-viva-duration="{{ assignment.viva_duration_seconds|default:600 }}"
      data-attempts-left="{{ attempts_left|default:0 }}"
      data-attempts-used="{{ attempts_used|default:0 }}"
-     data-feedback-visibility="{{ assignment.feedback_visibility|default:'immediate' }}">
+     data-feedback-visibility="{{ assignment.feedback_visibility|default:'immediate' }}"
+     data-unlimited-attempts="{% if assignment.max_attempts and assignment.max_attempts > 0 %}false{% else %}true{% endif %}"
+     data-event-tracking="{% if assignment.event_tracking %}true{% else %}false{% endif %}"
+     data-keystroke-tracking="{% if assignment.keystroke_tracking %}true{% else %}false{% endif %}"
+     data-arrhythmic-typing="{% if assignment.arrhythmic_typing %}true{% else %}false{% endif %}">
 
     <header class="nav">
         <div class="brand">
@@ -44,14 +75,18 @@
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva Dashboard</h3>
                     <div class="meta attempts-left-meta" data-attempts-meta style="margin-top:4px;">
-                        {% if attempts_left > 0 %}
+                        {% if attempts_left < 0 %}
+                            Unlimited viva attempts
+                        {% elif attempts_left > 0 %}
                             <span data-attempts-left>{{ attempts_left }}</span> viva attempt{% if attempts_left != 1 %}s{% endif %} left
+                        {% elif attempts_left == 0 and assignment.max_attempts|default:0 <= 0 %}
+                            Unlimited viva attempts
                         {% else %}
                             No viva attempts remaining
                         {% endif %}
                     </div>
                     {% if latest_submission %}
-                        {% if viva_status == "in_progress" or viva_status != "completed" or attempts_left|default:0 > 0 %}
+                        {% if viva_status != "completed" or attempts_left|default:0 > 0 or assignment.max_attempts|default:0 <= 0 %}
                             <button class="control-btn ghost"
                                     type="button"
                                     data-summary-cta
@@ -88,8 +123,8 @@
                             <label class="meta" style="display:block; margin-bottom:6px;">Previous viva attempts</label>
                             <div class="attempt-table">
                                 {% for vs in viva_sessions %}
-                                    <div class="attempt-row">
-                                        <span class="meta">Attempt {{ forloop.counter }} · {{ vs.started_at|date:"Y-m-d H:i" }}</span>
+                                    <div class="attempt-row" data-attempt-row data-started-at="{{ vs.started_at|date:'c' }}">
+                                        <span class="meta">Attempt {{ forloop.revcounter }} · {{ vs.started_at|date:"Y-m-d H:i" }}</span>
                                         <span class="attempt-actions">
                                             <a class="link view-attempt" href="#" data-view-session="{{ vs.id }}">View</a>
                                         </span>
@@ -115,6 +150,8 @@
                                     <div class="submission-row {% cycle 'row-alt' '' %}"
                                          data-submission-id="{{ sub.id }}"
                                          data-included="{{ sub.included|yesno:'1,0' }}"
+                                         data-file-name="{{ sub.file_name|cut:'submissions/'|cut:'submission/'|default:'uploaded file' }}"
+                                         data-comment="{{ sub.comment|default_if_none:''|escapejs }}"
                                          data-file-size="{{ sub.file_size|default:0 }}"
                                          data-start-url="{% url 'viva_start' sub.id %}">
                                         <div class="submission-cell file-name">
@@ -151,7 +188,7 @@
                     {% endif %}
                 </div>
 
-                {% if attempts_left|default:0 > 0 %}
+                {% if attempts_left|default:0 > 0 or assignment.max_attempts|default:0 <= 0 %}
                     <div class="settings-row">
                         <label>Upload files</label>
                         <form action="{% url 'submit_file' %}" method="POST" enctype="multipart/form-data" class="submission-form upload-inline" data-upload-form data-existing-count="{{ submission_payloads|length|default:0 }}" data-existing-size="{{ submissions_total_size|default:0 }}">
@@ -176,12 +213,7 @@
             <div class="settings-form-card is-hidden" data-viva-chat-card>
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva chat</h3>
-                    <button class="control-btn ghost"
-                            type="button"
-                            data-chat-cta
-                            data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
-                        {% if viva_status == "in_progress" %}Submission text{% else %}Back{% endif %}
-                    </button>
+                    <button class="control-btn ghost" type="button" data-back-dashboard>Back</button>
                 </div>
                 <div class="viva-chat-card">
                     <div class="viva-chat-wrap">
@@ -189,13 +221,13 @@
                              data-viva-chat-window
                              data-initial-ai="... Before we begin: answer in your own words, keep replies concise, stay focused on your submission. The viva will start as soon as you respond to this message."></div>
                     </div>
-                    <div class="viva-files is-hidden" data-viva-files></div>
                     <div class="input-row viva-input">
                         <div class="input-shell">
                             <input type="text" placeholder="Type your response..." disabled data-viva-input>
                         </div>
                         <button class="send-btn viva-send-btn" type="button" disabled data-viva-send>Send</button>
                     </div>
+                    <div class="viva-files is-hidden" data-viva-files></div>
                 </div>
             </div>
 
@@ -206,7 +238,7 @@
                 {% if assignment.description %}
                 <div class="settings-row">
                     <label>Description</label>
-                    <div class="meta">{{ assignment.description }}</div>
+                    <div class="meta description-box">{{ assignment.description }}</div>
                 </div>
                 {% endif %}
                 <div class="settings-row split">
@@ -216,7 +248,13 @@
                     </div>
                     <div>
                         <label>Attempts</label>
-                        <div class="meta">{{ assignment.max_attempts|default:1 }} allowed</div>
+                        <div class="meta">
+                            {% if assignment.max_attempts and assignment.max_attempts > 0 %}
+                                {{ assignment.max_attempts }} allowed
+                            {% else %}
+                                Unlimited attempts
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 <div class="settings-row">
@@ -228,19 +266,6 @@
                 <div class="settings-row">
                     <label>Downloads</label>
                     <div class="meta">{% if assignment.allow_student_report %}You can download your transcript/feedback{% else %}Downloads disabled{% endif %}</div>
-                </div>
-                <div class="settings-row">
-                    <label>Tracking</label>
-                    <div class="meta">
-                        {% if assignment.event_tracking %}We note paste events and when you switch away, just to give teachers context.{% else %}Event tracking is off.{% endif %}
-                    </div>
-                    <div class="meta">
-                        {% if assignment.keystroke_tracking %}We capture typing pace (not the content) to understand pacing.{% else %}Keystroke pacing is off.{% endif %}
-                    </div>
-                    <div class="meta">
-                        {% if assignment.arrhythmic_typing %}We flag unusual typing bursts so staff can double-check context.{% else %}Arrhythmic typing flags are off.{% endif %}
-                    </div>
-                    <div class="meta">Tips: stay in the window, type steadily in your own words, avoid large pasted chunks.</div>
                 </div>
             </div>
         </div>

@@ -905,6 +905,10 @@ a {
     overflow-y: auto;
 }
 
+.transcript-files {
+    margin-top: 12px;
+}
+
 .transcript-chat .bubble {
     opacity: 1;
     transform: none;
@@ -2105,6 +2109,7 @@ a {
 .settings-row select,
 .settings-row textarea {
     width: 100%;
+
     padding: 10px 12px;
     border-radius: 10px;
     border: 1px solid var(--border);
@@ -2115,6 +2120,7 @@ a {
 
 .settings-row textarea {
     resize: vertical;
+    min-height: 150px;
 }
 
 .settings-grid {
@@ -2699,6 +2705,28 @@ a {
 
 .viva-files {
     margin-top: 16px;
+    display: block;
+}
+
+.description-box {
+    min-height: 120px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    white-space: pre-line;
+}
+
+[data-theme="light"] .description-box {
+    border-color: rgba(15, 23, 42, 0.08);
+    background: #f8fafc;
+}
+
+.unlimited-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
 }
 .submission-cell.file-name {
     font-weight: 700;
