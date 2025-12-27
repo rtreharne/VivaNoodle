@@ -8,6 +8,7 @@ from .submission import (
     delete_submission,
     upload_assignment_resource,
     toggle_assignment_resource,
+    toggle_assignment_resource_preference,
     delete_assignment_resource,
 )
 from .nrps_test import nrps_test
@@ -26,5 +27,6 @@ from .standalone import (
     accept_invite,
     standalone_student_assignments,
     standalone_student_entry,
+    standalone_invite_accept_logged_in,
     verify_instructor,
 )

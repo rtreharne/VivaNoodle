@@ -8,7 +8,7 @@ from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 
 from openai import OpenAI
-from tool.models import Submission, VivaSession, VivaSessionSubmission, InteractionLog, VivaMessage, AssignmentResource, VivaSessionResource
+from tool.models import Submission, VivaSession, VivaSessionSubmission, InteractionLog, VivaMessage, AssignmentResource, AssignmentResourcePreference, VivaSessionResource
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
@@ -580,6 +580,12 @@ def viva_toggle_resource(request):
     if not created and link.included != included:
         link.included = included
         link.save(update_fields=["included"])
+
+    AssignmentResourcePreference.objects.update_or_create(
+        resource=resource,
+        user_id=str(session.submission.user_id),
+        defaults={"included": link.included},
+    )
 
     return JsonResponse({"status": "ok", "included": link.included})
 

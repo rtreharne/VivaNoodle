@@ -6,10 +6,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!root) return;
         if (mode === "light") {
             root.setAttribute("data-theme", "light");
-            if (themeToggle) themeToggle.textContent = "Dark";
+            if (themeToggle) themeToggle.textContent = "☾";
         } else {
             root.setAttribute("data-theme", "dark");
-            if (themeToggle) themeToggle.textContent = "Light";
+            if (themeToggle) themeToggle.textContent = "☀";
         }
         localStorage.setItem("mv-theme", mode);
     };
@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const sessionMetaScript = document.getElementById("session-meta-data");
     const sessionMeta = sessionMetaScript ? JSON.parse(sessionMetaScript.textContent || "{}") : {};
     const instructorToggleEnabled = pageEl?.dataset.instructorToggleEnabled === "true";
+    const allowEarlySubmit = pageEl?.dataset.allowEarlySubmit === "true";
     const eventTracking = pageEl?.dataset.eventTracking === "true";
     const keystrokeTracking = pageEl?.dataset.keystrokeTracking === "true";
     const arrhythmicTracking = pageEl?.dataset.arrhythmicTyping === "true";
@@ -89,14 +90,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const backBtn = document.querySelector("[data-back-summary]");
     const backDashboardBtn = document.querySelector("[data-back-dashboard]");
     const modelToggleBtn = document.querySelector("[data-toggle-model]");
+    const earlySubmitBtn = document.querySelector("[data-early-submit]");
     const startVivaBtns = document.querySelectorAll("[data-start-viva]");
     const startVivaBlocks = document.querySelectorAll("[data-start-viva-block]");
     const summaryCta = document.querySelector("[data-summary-cta]");
     const backToVivaBtns = document.querySelectorAll("[data-back-to-viva]");
     const attemptsMeta = document.querySelector("[data-attempts-meta]");
-    const layoutToggle = document.querySelector("[data-layout-toggle]");
-    const layoutIconColumns = document.querySelector(".layout-columns");
-    const layoutIconRows = document.querySelector(".layout-rows");
     const vivaChatWindow = document.querySelector("[data-viva-chat-window]");
     const vivaInput = document.querySelector("[data-viva-input]");
     const vivaSend = document.querySelector("[data-viva-send]");
@@ -665,6 +664,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 attemptsMeta.textContent = "No viva attempts remaining";
             }
         }
+        if (earlySubmitBtn) {
+            const chatVisible = !chatCard?.classList.contains("is-hidden");
+            const showEarlySubmit = allowEarlySubmit
+                && vivaSessionActive
+                && !vivaExpired
+                && !viewingHistory
+                && vivaTimeRemaining > 0
+                && chatVisible;
+            earlySubmitBtn.classList.toggle("is-hidden", !showEarlySubmit);
+            earlySubmitBtn.disabled = !showEarlySubmit;
+        }
         uploadForms.forEach((form) => {
             form.classList.toggle("is-hidden", (!hasUnlimitedAttempts() && attemptsLeft <= 0));
         });
@@ -778,6 +788,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }, "/viva/toggle_resource/");
     };
 
+    const saveInstructorResourcePreference = (resourceId, included) => {
+        if (!resourceId) return;
+        sendToServer({
+            resource_id: resourceId,
+            included,
+        }, `/assignment/resources/${resourceId}/preference/`);
+    };
+
     const deleteSubmission = async (row, submissionId) => {
         try {
             const res = await fetch(`/submission/${submissionId}/delete/`, {
@@ -849,6 +867,7 @@ document.addEventListener("DOMContentLoaded", () => {
             vivaSend.textContent = "Submit";
             vivaSend.classList.add("submit-mode");
         }
+        updateVivaControls();
     };
 
     const handleVivaSend = async () => {
@@ -968,6 +987,7 @@ document.addEventListener("DOMContentLoaded", () => {
         vivaSessionActive = false;
         activeHistorySessionId = sessionId;
         showModelAnswers = false;
+        if (chatCard) chatCard.classList.add("is-history");
         updateModelToggle(sessionId);
         renderHistory(sessionId);
         renderSessionFiles(sessionId);
@@ -997,6 +1017,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const history = sessionHistories[String(activeId)] || [];
         viewingHistory = false;
         vivaSessionActive = true;
+        chatCard?.classList.remove("is-history");
         clearVivaChat();
         if (history.length === 0) {
             vivaIntroStarted = false;
@@ -1027,6 +1048,15 @@ document.addEventListener("DOMContentLoaded", () => {
             showModelAnswers = !showModelAnswers;
             updateModelToggle(activeHistorySessionId);
             renderHistory(activeHistorySessionId);
+        });
+    }
+    if (earlySubmitBtn) {
+        earlySubmitBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (!allowEarlySubmit || vivaExpired || viewingHistory) return;
+            if (!vivaSessionActive) return;
+            enterSubmitMode();
+            vivaInput?.focus();
         });
     }
 
@@ -1109,6 +1139,7 @@ document.addEventListener("DOMContentLoaded", () => {
         viewingHistory = false;
         activeHistorySessionId = null;
         showModelAnswers = false;
+        chatCard.classList.remove("is-history");
         if (modelToggleBtn) {
             modelToggleBtn.classList.add("is-hidden");
             modelToggleBtn.textContent = "Show model answers";
@@ -1116,27 +1147,6 @@ document.addEventListener("DOMContentLoaded", () => {
         vivaInputRow?.classList.remove("is-hidden");
         vivaIntroStarted = false;
     };
-
-    const applyLayout = (mode) => {
-        if (!settingsGrid) return;
-        const single = mode === "single";
-        settingsGrid.classList.toggle("single-column", single);
-        // Swap icons to reflect what the button will do next
-        layoutIconColumns?.classList.toggle("is-hidden", !single);
-        layoutIconRows?.classList.toggle("is-hidden", single);
-        layoutToggle?.setAttribute("aria-pressed", single ? "true" : "false");
-        localStorage.setItem("mv-layout", single ? "single" : "grid");
-    };
-
-    const savedLayout = localStorage.getItem("mv-layout");
-    applyLayout(savedLayout === "single" ? "single" : "grid");
-
-    if (layoutToggle) {
-        layoutToggle.addEventListener("click", () => {
-            const currentSingle = settingsGrid?.classList.contains("single-column");
-            applyLayout(currentSingle ? "grid" : "single");
-        });
-    }
 
     startVivaBtns.forEach(btn => {
         btn.addEventListener("click", (e) => {
@@ -1236,6 +1246,8 @@ document.addEventListener("DOMContentLoaded", () => {
             row.dataset.included = toggle.checked ? "1" : "0";
             if (vivaSessionActive && (vivaSessionId || lastSessionId)) {
                 toggleInstructorResource(resourceId, !!toggle.checked);
+            } else {
+                saveInstructorResourcePreference(resourceId, !!toggle.checked);
             }
             updateVivaControls();
         });

@@ -9,8 +9,40 @@
     </div>
 </div>
 
+{% if invites %}
+    <div class="table-card" style="margin-top:20px;">
+        <div class="table-head cols-3">
+            <div>Invite</div>
+            <div>Expires</div>
+            <div>Action</div>
+        </div>
+        {% for invite in invites %}
+            <div class="table-row cols-3">
+                <div>{{ invite.assignment.title }}</div>
+                <div class="meta">
+                    {% if invite.is_expired %}
+                        Expired
+                    {% else %}
+                        {{ invite.expires_at }}
+                    {% endif %}
+                </div>
+                <div class="inline-actions">
+                    {% if invite.is_expired %}
+                        <span class="pill no">Expired</span>
+                    {% else %}
+                        <form method="post" action="{% url 'standalone_invite_accept_logged_in' invite.token %}">
+                            {% csrf_token %}
+                            <button type="submit" class="pill yes">Accept</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
 {% if memberships %}
-    <div class="table-card">
+    <div class="table-card" style="margin-top:20px;">
         <div class="table-head cols-3">
             <div>Title</div>
             <div>Added</div>
@@ -21,12 +53,18 @@
                 <div>{{ membership.assignment.title }}</div>
                 <div class="meta">{{ membership.created_at }}</div>
                 <div class="inline-actions">
-                    <a class="pill yes" href="{% url 'standalone_student_entry' membership.assignment.slug %}">Open</a>
+                    {% if membership.active_viva %}
+                        <a class="pill neutral throb" href="{% url 'standalone_student_entry' membership.assignment.slug %}">Return to Viva in progress</a>
+                    {% else %}
+                        <a class="pill yes" href="{% url 'standalone_student_entry' membership.assignment.slug %}">Open</a>
+                    {% endif %}
                 </div>
             </div>
         {% endfor %}
     </div>
 {% else %}
-    <p class="standalone-muted">No assignments yet. Check your invite link or ask your instructor to resend.</p>
+    {% if not invites %}
+        <p class="standalone-muted">No assignments yet. Check your invite link or ask your instructor to resend.</p>
+    {% endif %}
 {% endif %}
 {% endblock %}

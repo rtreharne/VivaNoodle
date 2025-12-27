@@ -5,7 +5,7 @@ from django.http import HttpResponseBadRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .helpers import is_instructor_role, is_admin_role
-from ..models import Assignment, Submission, VivaSession, AssignmentResource
+from ..models import Assignment, Submission, VivaSession, AssignmentResource, AssignmentResourcePreference
 from ..utils import extract_text_from_file
 
 
@@ -200,7 +200,7 @@ def upload_assignment_resource(request):
 
 
 @csrf_exempt
-def toggle_assignment_resource(request):
+def toggle_assignment_resource(request, resource_id=None):
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
 
@@ -213,7 +213,8 @@ def toggle_assignment_resource(request):
     except Exception:
         payload = request.POST
 
-    resource_id = payload.get("resource_id")
+    payload_resource_id = payload.get("resource_id")
+    resource_id = payload_resource_id or resource_id
     included_raw = payload.get("included")
 
     if not resource_id:
@@ -234,6 +235,45 @@ def toggle_assignment_resource(request):
     resource.save(update_fields=["included"])
 
     return JsonResponse({"status": "ok", "included": resource.included})
+
+
+@csrf_exempt
+def toggle_assignment_resource_preference(request, resource_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST only")
+
+    user_id = request.session.get("lti_user_id")
+    if not user_id:
+        return HttpResponseBadRequest("Missing user")
+
+    resource_link_id = request.session.get("lti_resource_link_id")
+    if not resource_link_id:
+        return HttpResponseBadRequest("Missing LTI session info")
+
+    assignment = Assignment.objects.get(slug=resource_link_id)
+    if not assignment.allow_student_resource_toggle:
+        return HttpResponseBadRequest("Resource toggles disabled")
+
+    try:
+        resource = AssignmentResource.objects.get(id=resource_id, assignment=assignment)
+    except AssignmentResource.DoesNotExist:
+        return HttpResponseBadRequest("Invalid resource")
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    included_raw = payload.get("included")
+    included = str(included_raw).lower() in ["1", "true", "yes", "on"]
+
+    pref, _ = AssignmentResourcePreference.objects.update_or_create(
+        resource=resource,
+        user_id=str(user_id),
+        defaults={"included": included},
+    )
+
+    return JsonResponse({"status": "ok", "included": pref.included})
 
 
 @csrf_exempt

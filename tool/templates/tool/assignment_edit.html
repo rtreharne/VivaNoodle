@@ -81,6 +81,14 @@
                     </label>
                 </div>
                 <div class="settings-row">
+                    <label>Allow early submission</label>
+                    <label class="switch">
+                        <input type="checkbox" name="allow_early_submission" {% if assignment.allow_early_submission %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                    <div class="meta">Students can submit before time expires.</div>
+                </div>
+                <div class="settings-row">
                     <label>Enable model answers</label>
                     <label class="switch">
                         <input type="checkbox" name="enable_model_answers" {% if assignment.enable_model_answers %}checked{% endif %}>

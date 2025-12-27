@@ -2,9 +2,12 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Q
+from django.db import IntegrityError
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponseBadRequest
 from django.urls import reverse
 from django.utils.timezone import now
 from django.core.mail import send_mail
@@ -13,6 +16,7 @@ from ..models import (
     Assignment,
     AssignmentInvitation,
     AssignmentMembership,
+    VivaSession,
     UserProfile,
 )
 from .helpers import set_standalone_session
@@ -211,9 +215,21 @@ def standalone_signup(request):
             error = "Email and password are required."
         elif User.objects.filter(email__iexact=email).exists():
             error = "An account with that email already exists. Please log in."
+        elif User.objects.filter(username__iexact=email).exists():
+            error = "An account with that email already exists. Please log in."
         else:
             username = email
-            user = User.objects.create_user(username=username, email=email, password=password)
+            try:
+                user = User.objects.create_user(username=username, email=email, password=password)
+            except IntegrityError:
+                error = "An account with that email already exists. Please log in."
+                user = None
+            if error:
+                return render(request, "tool/standalone_signup.html", {
+                    "error": error,
+                    "institution_types": INSTITUTION_TYPES,
+                    "uk_he_institutions": UK_HE_INSTITUTIONS,
+                })
             user.is_active = False  # require verification
             if name:
                 parts = name.split(" ", 1)
@@ -417,12 +433,18 @@ def accept_invite(request, token):
                 error = "Password is required."
             elif User.objects.filter(email__iexact=invite.email).exists():
                 error = "An account with this email already exists. Please log in."
+            elif User.objects.filter(username__iexact=invite.email).exists():
+                error = "An account with this email already exists. Please log in."
             else:
-                user = User.objects.create_user(
-                    username=invite.email.lower(),
-                    email=invite.email.lower(),
-                    password=password,
-                )
+                try:
+                    user = User.objects.create_user(
+                        username=invite.email.lower(),
+                        email=invite.email.lower(),
+                        password=password,
+                    )
+                except IntegrityError:
+                    error = "An account with this email already exists. Please log in."
+                    user = None
                 if name:
                     parts = name.split(" ", 1)
                     user.first_name = parts[0]
@@ -520,9 +542,63 @@ def standalone_student_assignments(request):
         user=request.user,
         role=AssignmentMembership.ROLE_STUDENT,
     ).select_related("assignment").order_by("-created_at")
+    active_session_by_assignment = {}
+    assignment_ids = [m.assignment_id for m in memberships]
+    if assignment_ids:
+        active_sessions = VivaSession.objects.filter(
+            submission__assignment_id__in=assignment_ids,
+            submission__user_id=str(request.user.id),
+            ended_at__isnull=True,
+        ).select_related("submission__assignment").order_by("-started_at")
+        for session in active_sessions:
+            assignment_id = session.submission.assignment_id
+            if assignment_id not in active_session_by_assignment:
+                active_session_by_assignment[assignment_id] = session
+    for membership in memberships:
+        membership.active_viva = active_session_by_assignment.get(membership.assignment_id)
+    email_candidates = set()
+    if request.user.email:
+        email_candidates.add(request.user.email.strip().lower())
+    if request.user.username:
+        email_candidates.add(request.user.username.strip().lower())
+    invites = AssignmentInvitation.objects.none()
+    if email_candidates:
+        query = Q()
+        for email in email_candidates:
+            query |= Q(email__iexact=email)
+        invites = AssignmentInvitation.objects.filter(
+            query,
+            accepted_at__isnull=True,
+        ).select_related("assignment").order_by("-created_at")
     return render(request, "tool/standalone_student_assignments.html", {
         "memberships": memberships,
+        "invites": invites,
     })
+
+
+@login_required
+def standalone_invite_accept_logged_in(request, token):
+    invite = get_object_or_404(AssignmentInvitation, token=token)
+    if invite.is_expired or invite.accepted_at:
+        return redirect("standalone_student_assignments")
+
+    user_email = (request.user.email or "").strip().lower()
+    user_username = (request.user.username or "").strip().lower()
+    invite_email = (invite.email or "").strip().lower()
+    if invite_email not in {user_email, user_username}:
+        return HttpResponseBadRequest("Invite does not match this account")
+
+    invite.accepted_at = now()
+    invite.redeemed_by = request.user
+    invite.save(update_fields=["accepted_at", "redeemed_by"])
+
+    AssignmentMembership.objects.get_or_create(
+        assignment=invite.assignment,
+        user=request.user,
+        defaults={"role": AssignmentMembership.ROLE_STUDENT, "invited_by": invite.invited_by},
+    )
+    set_standalone_session(request, request.user, invite.assignment, force_instructor=False)
+    return redirect("assignment_view")
 
 
 @login_required

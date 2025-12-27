@@ -103,6 +103,16 @@
                         </div>
                         <div class="tracking-item">
                             <div>
+                                <div class="tracking-label">Allow early submission</div>
+                                <div class="meta">Students can finish before the timer ends.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="allow_early_submission" {% if edit_mode %}{% if assignment.allow_early_submission %}checked{% endif %}{% else %}{% if default_allow_early_submission %}checked{% endif %}{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="tracking-item">
+                            <div>
                                 <div class="tracking-label">Enable model answers</div>
                                 <div class="meta">Show exemplar answers after completion.</div>
                             </div>

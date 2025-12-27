@@ -464,10 +464,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const renderFeedback = () => {};
 
+    const getAttemptTimestamp = (attempt) => {
+        if (!attempt) return 0;
+        const raw = attempt.created_at || attempt.started_at || "";
+        const date = raw ? new Date(raw) : null;
+        if (date && !Number.isNaN(date.getTime())) return date.getTime();
+        const sessionId = parseInt(attempt.session_id, 10);
+        return Number.isFinite(sessionId) ? sessionId : 0;
+    };
+
+    const sortAttempts = (attempts = []) => {
+        return [...attempts].sort((a, b) => getAttemptTimestamp(b) - getAttemptTimestamp(a));
+    };
+
+    const pickLatestAttemptWithMessages = (attempts = []) => {
+        const sorted = sortAttempts(attempts);
+        if (!sorted.length) return null;
+        const withMessages = sorted.find((attempt) => Array.isArray(attempt.messages) && attempt.messages.length);
+        return withMessages || sorted[0];
+    };
+
     const getAttempts = (student) => {
         if (!student) return [];
-        if (Array.isArray(student.vivas) && student.vivas.length) return student.vivas;
-        if (student.viva) return [student.viva];
+        if (Array.isArray(student.vivas) && student.vivas.length) return sortAttempts(student.vivas);
+        if (student.viva) return sortAttempts([student.viva]);
         return [];
     };
 
@@ -505,9 +525,9 @@ document.addEventListener("DOMContentLoaded", () => {
             opt.textContent = `Attempt ${attemptNumber}` + (dateLabel ? ` · ${dateLabel}` : "");
             attemptSelect.appendChild(opt);
         });
-        const first = attempts[0];
-        if (first) attemptSelect.value = first.session_id;
-        return first?.session_id || null;
+        const defaultAttempt = pickLatestAttemptWithMessages(attempts);
+        if (defaultAttempt) attemptSelect.value = defaultAttempt.session_id;
+        return defaultAttempt?.session_id || null;
     };
 
     const renderTranscript = (student, sessionId = null) => {
@@ -528,8 +548,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const targetId = sessionId || attempts[0].session_id;
-        const attempt = attempts.find(a => String(a.session_id) === String(targetId)) || attempts[0];
+        const defaultAttempt = pickLatestAttemptWithMessages(attempts);
+        const targetId = sessionId || defaultAttempt?.session_id;
+        const attempt = attempts.find(a => String(a.session_id) === String(targetId)) || defaultAttempt || attempts[0];
         if (attemptSelect) attemptSelect.value = attempt.session_id;
 
         renderTranscriptTimeline(attempt.messages || [], attempt.events || []);

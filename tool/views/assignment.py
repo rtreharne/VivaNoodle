@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback, VivaSessionSubmission, InteractionLog, AssignmentResource, VivaSessionResource, AssignmentInvitation
+from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaFeedback, VivaSessionSubmission, InteractionLog, AssignmentResource, AssignmentResourcePreference, VivaSessionResource, AssignmentInvitation, AssignmentMembership
 from datetime import datetime
 from django.utils.timezone import now
 from .viva import compute_integrity_flags
@@ -74,6 +74,7 @@ def assignment_edit_save(request):
 
     # Report/download permission
     assignment.allow_student_report = (request.POST.get("allow_student_report") == "on")
+    assignment.allow_early_submission = (request.POST.get("allow_early_submission") == "on")
 
     # New tracking fields
     assignment.keystroke_tracking = (request.POST.get("keystroke_tracking") == "on")
@@ -169,6 +170,10 @@ def assignment_view(request):
                 custom.get("allow_student_report"),
                 default=assignment.allow_student_report
             )
+            assignment.allow_early_submission = as_bool(
+                custom.get("allow_early_submission"),
+                default=assignment.allow_early_submission
+            )
             assignment.event_tracking = as_bool(
                 custom.get("event_tracking"),
                 default=assignment.event_tracking
@@ -253,29 +258,92 @@ def assignment_view(request):
             if key not in submission_map:
                 submission_map[key] = sub
 
-        nrps_url = request.session.get("nrps_url")
-        roster = fetch_nrps_roster(nrps_url) if nrps_url else []
-
-        # Build sortable_name if missing; fallback to submission names if no roster
-        for m in roster:
-            given = m.get("given_name", "").strip()
-            family = m.get("family_name", "").strip()
-
-            if family or given:
-                m["sortable_name"] = f"{family}, {given}".strip(", ")
-            else:
-                m["sortable_name"] = m.get("name", "")
-
-        roster = sorted(roster, key=lambda m: m["sortable_name"].lower())
-
-        # If NRPS is unavailable, derive a basic roster from submissions
-        if not roster:
-            for sub in submission_map.values():
+        roster = []
+        if from_standalone:
+            memberships = AssignmentMembership.objects.filter(
+                assignment=assignment,
+                role=AssignmentMembership.ROLE_STUDENT,
+            ).select_related("user")
+            for membership in memberships:
+                user = membership.user
+                given = (user.first_name or "").strip()
+                family = (user.last_name or "").strip()
+                if family or given:
+                    display_name = f"{family}, {given}".strip(", ")
+                else:
+                    display_name = (user.get_full_name() or "").strip()
+                if not display_name:
+                    display_name = user.email or user.username or str(user.id)
                 roster.append({
-                    "user_id": sub.user_id,
-                    "sortable_name": sub.user_id,
+                    "user_id": str(user.id),
+                    "sortable_name": display_name,
                     "roles": ["Learner"],
+                    "email": user.email or "",
                 })
+            roster = sorted(roster, key=lambda m: (m.get("sortable_name") or "").lower())
+        else:
+            nrps_url = request.session.get("nrps_url")
+            roster = fetch_nrps_roster(nrps_url) if nrps_url else []
+
+            # Build sortable_name if missing; fallback to submission names if no roster
+            for m in roster:
+                given = m.get("given_name", "").strip()
+                family = m.get("family_name", "").strip()
+
+                if family or given:
+                    m["sortable_name"] = f"{family}, {given}".strip(", ")
+                else:
+                    m["sortable_name"] = m.get("name", "")
+
+            roster = sorted(roster, key=lambda m: m["sortable_name"].lower())
+
+            # If NRPS is unavailable, derive a basic roster from submissions
+            if not roster:
+                for sub in submission_map.values():
+                    roster.append({
+                        "user_id": sub.user_id,
+                        "sortable_name": sub.user_id,
+                        "roles": ["Learner"],
+                    })
+
+        pending_invites = []
+        accepted_invite_user_ids = set()
+        invite_qs_pending = []
+        if from_standalone:
+            invite_qs_pending = list(AssignmentInvitation.objects.filter(
+                assignment=assignment,
+                accepted_at__isnull=True,
+            ).order_by("-created_at"))
+            for inv in invite_qs_pending:
+                pending_invites.append({
+                    "email": inv.email,
+                    "status": "Expired" if inv.is_expired else "Pending",
+                    "invite_id": inv.id,
+                })
+
+            invite_qs_accepted = AssignmentInvitation.objects.filter(
+                assignment=assignment,
+                accepted_at__isnull=False,
+            ).select_related("redeemed_by")
+            roster_user_ids = {str(m.get("user_id")) for m in roster}
+            for inv in invite_qs_accepted:
+                uid = str(inv.redeemed_by_id or inv.email)
+                accepted_invite_user_ids.add(uid)
+                display_name = inv.email
+                if inv.redeemed_by:
+                    first = (inv.redeemed_by.first_name or "").strip()
+                    last = (inv.redeemed_by.last_name or "").strip()
+                    if last or first:
+                        display_name = f"{last}, {first}".strip(", ")
+                if uid not in roster_user_ids:
+                    roster.append({
+                        "user_id": uid,
+                        "sortable_name": display_name,
+                        "roles": ["Learner"],
+                        "email": inv.email,
+                    })
+                    roster_user_ids.add(uid)
+            roster = sorted(roster, key=lambda m: (m.get("sortable_name") or m.get("name") or "").lower())
 
         students = []
         completed_count = 0
@@ -286,11 +354,32 @@ def assignment_view(request):
             if "learner" not in ",".join(member.get("roles", [])).lower():
                 continue
 
-            uid = str(member.get("user_id"))
-            sub = submission_map.get(uid)
+            candidate_ids = []
+            def add_candidate(value):
+                if value is None:
+                    return
+                val = str(value).strip()
+                if not val or val in candidate_ids:
+                    return
+                candidate_ids.append(val)
+
+            add_candidate(member.get("user_id"))
+            add_candidate(member.get("email"))
+            add_candidate(member.get("email_address"))
+            add_candidate(member.get("lis_person_contact_email_primary"))
+            add_candidate(member.get("lis_person_contact_email"))
+            add_candidate(member.get("lis_person_sourcedid"))
+
+            uid = candidate_ids[0] if candidate_ids else str(member.get("user_id") or "")
+            sub = None
+            for cid in candidate_ids:
+                sub = submission_map.get(cid)
+                if sub:
+                    break
+
             sessions_qs = VivaSession.objects.filter(
                 submission__assignment=assignment,
-                submission__user_id=uid
+                submission__user_id__in=candidate_ids or [uid],
             ).order_by("-started_at")
             active_session = sessions_qs.filter(ended_at__isnull=True).first()
             latest_session = sessions_qs.first()
@@ -409,7 +498,7 @@ def assignment_view(request):
                 sub.created_at.isoformat() if sub else None
             )
 
-            students.append({
+            student_entry = {
                 "user_id": uid,
                 "name": member.get("sortable_name", uid),
                 "submission_id": sub.id if sub else None,
@@ -419,7 +508,10 @@ def assignment_view(request):
                 "flags": flags,
                 "viva": viva_payload,
                 "vivas": viva_attempts,
-            })
+            }
+            if from_standalone and uid in accepted_invite_user_ids:
+                student_entry["accepted_invite"] = True
+            students.append(student_entry)
 
             if status == "completed":
                 completed_count += 1
@@ -440,19 +532,8 @@ def assignment_view(request):
             },
         }
 
-        pending_invites = []
-        accepted_invite_user_ids = set()
         if from_standalone:
-            invite_qs_pending = AssignmentInvitation.objects.filter(
-                assignment=assignment,
-                accepted_at__isnull=True,
-            ).order_by("-created_at")
             for inv in invite_qs_pending:
-                pending_invites.append({
-                    "email": inv.email,
-                    "status": "Expired" if inv.is_expired else "Pending",
-                    "invite_id": inv.id,
-                })
                 students.append({
                     "user_id": f"invite-{inv.id}",
                     "name": inv.email,
@@ -468,48 +549,6 @@ def assignment_view(request):
                     "invite_status": "Expired" if inv.is_expired else "Pending",
                 })
 
-            invite_qs_accepted = AssignmentInvitation.objects.filter(
-                assignment=assignment,
-                accepted_at__isnull=False,
-            ).select_related("redeemed_by")
-            for inv in invite_qs_accepted:
-                if inv.redeemed_by_id:
-                    accepted_invite_user_ids.add(str(inv.redeemed_by_id))
-
-            # mark accepted invites already in roster
-            student_index = {s["user_id"]: idx for idx, s in enumerate(students)}
-            for uid in accepted_invite_user_ids:
-                if uid in student_index:
-                    students[student_index[uid]]["accepted_invite"] = True
-
-            # add accepted invite rows if not present
-            for inv in invite_qs_accepted:
-                uid = str(inv.redeemed_by_id or inv.email)
-                display_name = inv.email
-                if inv.redeemed_by:
-                    # Prefer sortable_name if we can infer it
-                    first = (inv.redeemed_by.first_name or "").strip()
-                    last = (inv.redeemed_by.last_name or "").strip()
-                    if last or first:
-                        display_name = f"{last}, {first}".strip(", ")
-                if uid in student_index:
-                    students[student_index[uid]]["name"] = display_name
-                    students[student_index[uid]]["accepted_invite"] = True
-                else:
-                    students.append({
-                        "user_id": uid,
-                        "name": display_name,
-                        "submission_id": None,
-                        "status": "pending",
-                        "remaining_seconds": None,
-                        "submitted_at": None,
-                        "flags": [],
-                        "viva": None,
-                        "vivas": [],
-                        "is_invite": False,
-                        "accepted_invite": True,
-                    })
-
             # Float accepted invites to the top, then invited, then others
             students = sorted(
                 students,
@@ -522,7 +561,7 @@ def assignment_view(request):
         return render(request, "tool/teacher_dashboard.html", {
             "assignment": assignment,
             "students": students,
-            "dashboard_json": json.dumps(dashboard_data, default=str),
+            "dashboard_data": dashboard_data,
             "now": datetime.now(),
             "duration_minutes": int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else 10,
             "tones": ["Supportive", "Neutral", "Probing", "Peer-like"],
@@ -548,7 +587,20 @@ def assignment_view(request):
         assignment=assignment
     ).order_by("-created_at")
     included_resources = all_resources.filter(included=True)
-    has_included_resources = included_resources.exists()
+    resource_pref_map = {}
+    if assignment.allow_student_resource_toggle and user_id:
+        prefs = AssignmentResourcePreference.objects.filter(
+            resource__assignment=assignment,
+            user_id=str(user_id),
+        )
+        resource_pref_map = {pref.resource_id: pref.included for pref in prefs}
+    if assignment.allow_student_resource_toggle and resource_pref_map:
+        has_included_resources = any(
+            resource_pref_map.get(resource.id, resource.included)
+            for resource in all_resources
+        )
+    else:
+        has_included_resources = included_resources.exists()
     if not student_submissions.exists() and has_included_resources and not placeholder_submission:
         placeholder_submission = Submission.objects.create(
             assignment=assignment,
@@ -611,11 +663,12 @@ def assignment_view(request):
                 for link in resource_links
             }
     for resource in all_resources:
+        pref_included = resource_pref_map.get(resource.id, resource.included)
         resource_payloads.append({
             "id": resource.id,
             "file_name": resource.file.name if resource.file else "Resource file",
             "comment": resource.comment,
-            "included": resource_include_map.get(resource.id, resource.included),
+            "included": resource_include_map.get(resource.id, pref_included),
             "file_size": resource.file.size if resource.file else 0,
         })
 
@@ -707,8 +760,6 @@ def assignment_view(request):
 
     duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else None
 
-    session_histories_json = json.dumps(session_histories, default=str)
-    session_meta_json = json.dumps(session_meta, default=str)
     default_resource_entries = [
         {
             "file_name": resource.file.name if resource.file else "Resource file",
@@ -716,7 +767,7 @@ def assignment_view(request):
         }
         for resource in included_resources
     ]
-    session_files_json = json.dumps({
+    session_files_payload = {
         s.id: (
         [
             {
@@ -737,12 +788,19 @@ def assignment_view(request):
             ) if entry.get("included", True)
         ])
         for s in sessions
-    }, default=str)
-    config_files_json = json.dumps(config_files, default=str)
+    }
+
+    user_email = ""
+    logout_url = ""
+    if request.user.is_authenticated:
+        user_email = request.user.email or request.user.username or ""
+        logout_url = "standalone_logout"
 
     return render(request, "tool/student_submit.html", {
         "assignment": assignment,
         "user_id": user_id,
+        "user_email": user_email,
+        "logout_url": logout_url,
         "latest_submission": latest,
         "past_submissions": student_submissions,
         "submission_payloads": submission_payloads,
@@ -756,10 +814,10 @@ def assignment_view(request):
         "attempts_used": existing_sessions,
         "session": active_session,
         "viva_sessions": sessions,
-        "session_histories_json": session_histories_json,
-        "session_meta_json": session_meta_json,
-        "session_files_json": session_files_json,
-        "config_files_json": config_files_json,
+        "session_histories": session_histories,
+        "session_meta": session_meta,
+        "session_files": session_files_payload,
+        "config_files": config_files,
         "config_files_included": True if config_files else False,
         "assignment_resources": resource_payloads,
         "submissions_total_size": submissions_total_size,

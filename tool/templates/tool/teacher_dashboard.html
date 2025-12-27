@@ -226,6 +226,16 @@
                             </div>
                             <div class="tracking-item">
                                 <div>
+                                    <div class="tracking-label">Allow early submission</div>
+                                    <div class="meta">Students can finish before the timer ends.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="allow_early_submission" {% if assignment.allow_early_submission %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="tracking-item">
+                                <div>
                                     <div class="tracking-label">Enable model answers</div>
                                     <div class="meta">Show exemplar answers after completion.</div>
                                 </div>
@@ -431,7 +441,7 @@
     </footer>
 </div>
 
-<script id="dashboard-data" type="application/json">{{ dashboard_json|safe }}</script>
+{{ dashboard_data|json_script:"dashboard-data" }}
 <div class="save-toast" data-save-toast>Settings updated</div>
 <div class="preview-modal" data-preview-modal>
     <div class="preview-dialog">

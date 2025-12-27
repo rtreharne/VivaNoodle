@@ -50,30 +50,37 @@
      data-keystroke-tracking="{% if assignment.keystroke_tracking %}true{% else %}false{% endif %}"
      data-arrhythmic-typing="{% if assignment.arrhythmic_typing %}true{% else %}false{% endif %}"
      data-model-answers-enabled="{% if assignment.enable_model_answers %}true{% else %}false{% endif %}"
-     data-instructor-toggle-enabled="{% if assignment.allow_student_resource_toggle %}true{% else %}false{% endif %}">
+     data-instructor-toggle-enabled="{% if assignment.allow_student_resource_toggle %}true{% else %}false{% endif %}"
+     data-allow-early-submit="{% if assignment.allow_early_submission %}true{% else %}false{% endif %}">
 
-    <header class="nav">
+    <header class="nav nav-spread">
         <div class="brand">
             <span class="brand-mark">MV</span>
             <span>MachinaViva</span>
         </div>
         <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
         <div class="nav-actions">
+            {% if request.user.is_authenticated %}
+            <a class="view-btn" href="{% url 'standalone_student_assignments' %}">My assignments</a>
+            {% endif %}
             <span class="badge viva-nav-timer is-hidden"
                   data-viva-timer
                   data-viva-minutes="{{ duration_minutes|default:10 }}"
                   data-viva-seconds="{{ remaining_seconds|default_if_none:0 }}">00:00</span>
-            <button class="view-btn ghost layout-toggle-btn" type="button" data-layout-toggle aria-label="Toggle layout">
-                <span class="layout-icon layout-columns" aria-hidden="true"></span>
-                <span class="layout-icon layout-rows is-hidden" aria-hidden="true"></span>
-            </button>
-            <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">Light</button>
+            <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">☾</button>
+            {% if user_email and logout_url %}
+            <span class="user-chip">
+                {{ user_email }}
+                <span class="chip-divider">•</span>
+                <a class="link" href="{% url logout_url %}">Logout</a>
+            </span>
+            {% endif %}
         </div>
     </header>
 
     <section class="section dash-compact">
 
-        <div class="settings-grid">
+        <div class="settings-grid single-column">
             <div class="settings-form-card" data-viva-summary-card>
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva Dashboard</h3>
@@ -268,6 +275,7 @@
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva chat</h3>
                     <div class="viva-head-actions">
+                        <button class="control-btn ghost is-hidden" type="button" data-early-submit>Submit early</button>
                         <button class="control-btn ghost is-hidden" type="button" data-toggle-model>Show model answers</button>
                         <button class="control-btn ghost" type="button" data-back-dashboard>Back</button>
                     </div>
@@ -344,9 +352,9 @@
         </div>
     </div>
 </div>
-<script id="session-histories-data" type="application/json">{{ session_histories_json|safe }}</script>
-<script id="session-files-data" type="application/json">{{ session_files_json|safe }}</script>
-<script id="session-meta-data" type="application/json">{{ session_meta_json|safe }}</script>
-<script id="config-files-data" type="application/json">{{ config_files_json|safe }}</script>
+{{ session_histories|json_script:"session-histories-data" }}
+{{ session_files|json_script:"session-files-data" }}
+{{ session_meta|json_script:"session-meta-data" }}
+{{ config_files|json_script:"config-files-data" }}
 </body>
 </html>

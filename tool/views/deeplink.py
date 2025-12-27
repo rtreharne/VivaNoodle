@@ -72,6 +72,7 @@ def deeplink(request):
         "default_feedback_visibility": "immediate",
         "default_viva_tone": "Supportive",
         "default_allow_student_report": True,
+        "default_allow_early_submission": False,
         "default_enable_model_answers": True,
         "default_allow_student_resource_toggle": False,
         "default_event_tracking": True,
@@ -95,6 +96,7 @@ def deeplink_submit(request):
     viva_tone = request.POST.get("viva_tone", "Supportive")
     feedback_visibility = request.POST.get("feedback_visibility", "immediate")
     allow_student_report = request.POST.get("allow_student_report") == "on"
+    allow_early_submission = request.POST.get("allow_early_submission") == "on"
     enable_model_answers = request.POST.get("enable_model_answers") == "on"
     allow_student_resource_toggle = request.POST.get("allow_student_resource_toggle") == "on"
     event_tracking = request.POST.get("event_tracking") == "on"
@@ -112,6 +114,7 @@ def deeplink_submit(request):
         "viva_tone": viva_tone,
         "feedback_visibility": feedback_visibility,
         "allow_student_report": "true" if allow_student_report else "false",
+        "allow_early_submission": "true" if allow_early_submission else "false",
         "enable_model_answers": "true" if enable_model_answers else "false",
         "allow_student_resource_toggle": "true" if allow_student_resource_toggle else "false",
         "event_tracking": "true" if event_tracking else "false",

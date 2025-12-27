@@ -46,6 +46,10 @@ class Assignment(models.Model):
         default=True,
         help_text="Allow students to download their transcript/feedback."
     )
+    allow_early_submission = models.BooleanField(
+        default=False,
+        help_text="Allow students to submit the viva before time expires."
+    )
 
     additional_prompts = models.TextField(
         blank=True,
@@ -88,7 +92,20 @@ class AssignmentResource(models.Model):
     def __str__(self):
         file_name = self.file.name if self.file else "resource"
         return f"{self.assignment.title} → {file_name}"
-    
+
+class AssignmentResourcePreference(models.Model):
+    resource = models.ForeignKey(AssignmentResource, on_delete=models.CASCADE, related_name="preferences")
+    user_id = models.CharField(max_length=255)
+    included = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("resource", "user_id")
+
+    def __str__(self):
+        file_name = self.resource.file.name if self.resource and self.resource.file else "resource"
+        return f"{self.user_id} preference for {file_name}"
+
 class VivaSession(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="viva_sessions")
     started_at = models.DateTimeField(auto_now_add=True)

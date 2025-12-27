@@ -17,6 +17,7 @@ urlpatterns = [
     path("app/invites/<int:invite_id>/resend/", views.standalone_invite_resend, name="standalone_invite_resend"),
     path("app/student/", views.standalone_student_assignments, name="standalone_student_assignments"),
     path("app/student/assignments/<slug:slug>/", views.standalone_student_entry, name="standalone_student_entry"),
+    path("app/student/invites/<str:token>/accept/", views.standalone_invite_accept_logged_in, name="standalone_invite_accept_logged_in"),
     path("invite/<str:token>/", views.accept_invite, name="accept_invite"),
     path("app/verify/<str:token>/", views.verify_instructor, name="verify_instructor"),
 
@@ -44,6 +45,7 @@ urlpatterns = [
     path("submission/<int:submission_id>/", views.submission_status, name="submission_status"),
     path("assignment/resources/upload/", views.upload_assignment_resource, name="upload_assignment_resource"),
     path("assignment/resources/<int:resource_id>/toggle/", views.toggle_assignment_resource, name="toggle_assignment_resource"),
+    path("assignment/resources/<int:resource_id>/preference/", views.toggle_assignment_resource_preference, name="toggle_assignment_resource_preference"),
     path("assignment/resources/<int:resource_id>/delete/", views.delete_assignment_resource, name="delete_assignment_resource"),
 
     # nprs
