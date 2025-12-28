@@ -1,6 +1,6 @@
 databases:
   - name: vivanoodle-db
-    plan: starter
+    plan: basic
     databaseName: vivanoodle
     user: vivanoodle
 
