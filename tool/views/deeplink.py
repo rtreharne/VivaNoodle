@@ -74,7 +74,8 @@ def deeplink(request):
         "tones": tones,
         "default_duration_minutes": 10,
         "default_max_attempts": 1,
-        "default_feedback_visibility": "immediate",
+        "default_ai_feedback_visible": True,
+        "default_teacher_feedback_visible": True,
         "default_viva_tone": "Supportive",
         "default_allow_student_report": True,
         "default_allow_early_submission": False,
@@ -99,7 +100,8 @@ def deeplink_submit(request):
     max_attempts = request.POST.get("max_attempts", "1")
     unlimited_attempts = request.POST.get("unlimited_attempts") == "on"
     viva_tone = request.POST.get("viva_tone", "Supportive")
-    feedback_visibility = request.POST.get("feedback_visibility", "immediate")
+    ai_feedback_visible = request.POST.get("ai_feedback_visible") == "on"
+    teacher_feedback_visible = request.POST.get("teacher_feedback_visible") == "on"
     allow_student_report = request.POST.get("allow_student_report") == "on"
     allow_early_submission = request.POST.get("allow_early_submission") == "on"
     enable_model_answers = request.POST.get("enable_model_answers") == "on"
@@ -117,7 +119,8 @@ def deeplink_submit(request):
         "max_attempts": "0" if unlimited_attempts else str(max_attempts),
         "unlimited_attempts": "true" if unlimited_attempts else "false",
         "viva_tone": viva_tone,
-        "feedback_visibility": feedback_visibility,
+        "ai_feedback_visible": "true" if ai_feedback_visible else "false",
+        "teacher_feedback_visible": "true" if teacher_feedback_visible else "false",
         "allow_student_report": "true" if allow_student_report else "false",
         "allow_early_submission": "true" if allow_early_submission else "false",
         "enable_model_answers": "true" if enable_model_answers else "false",
@@ -129,6 +132,7 @@ def deeplink_submit(request):
         "additional_prompts": additional_prompts,
         "instructor_notes": instructor_notes,
     }
+    custom_params["feedback_visibility"] = "immediate" if ai_feedback_visible else "hidden"
     if unlimited_attempts:
         custom_params["allow_multiple_submissions"] = "true"
     else:

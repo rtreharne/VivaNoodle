@@ -78,14 +78,29 @@
                         </select>
                     </div>
                 </div>
-                <div class="settings-row split">
-                    <div>
-                        <label for="feedback_visibility">Feedback visibility</label>
-                        <select id="feedback_visibility" name="feedback_visibility">
-                            <option value="immediate" {% if edit_mode %}{% if assignment.feedback_visibility == "immediate" %}selected{% endif %}{% else %}{% if default_feedback_visibility == "immediate" %}selected{% endif %}{% endif %}>Show immediately</option>
-                            <option value="after_review" {% if edit_mode %}{% if assignment.feedback_visibility == "after_review" %}selected{% endif %}{% else %}{% if default_feedback_visibility == "after_review" %}selected{% endif %}{% endif %}>After teacher review</option>
-                            <option value="hidden" {% if edit_mode %}{% if assignment.feedback_visibility == "hidden" %}selected{% endif %}{% else %}{% if default_feedback_visibility == "hidden" %}selected{% endif %}{% endif %}>Hide</option>
-                        </select>
+                <div class="settings-row">
+                    <label>Feedback visibility</label>
+                    <div class="tracking-table">
+                        <div class="tracking-item">
+                            <div>
+                                <div class="tracking-label">Show AI feedback</div>
+                                <div class="meta">AI feedback is visible to students.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="ai_feedback_visible" {% if edit_mode %}{% if assignment.ai_feedback_visible %}checked{% endif %}{% else %}{% if default_ai_feedback_visible %}checked{% endif %}{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="tracking-item">
+                            <div>
+                                <div class="tracking-label">Show teacher feedback</div>
+                                <div class="meta">Teacher feedback is visible to students.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="teacher_feedback_visible" {% if edit_mode %}{% if assignment.teacher_feedback_visible %}checked{% endif %}{% else %}{% if default_teacher_feedback_visible %}checked{% endif %}{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-row">

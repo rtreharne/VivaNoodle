@@ -1,4 +1,5 @@
 {% load static %}
+{% load tz %}
 {% now "U" as cachebust %}
 <!DOCTYPE html>
 <html lang="en">
@@ -48,6 +49,16 @@
                     <label for="description">Description</label>
                     <textarea id="description" name="description" rows="3" placeholder="Short summary for staff and students.">{{ assignment.description }}</textarea>
                 </div>
+                <div class="settings-row">
+                    <label for="deadline_at">Deadline</label>
+                    <input
+                        type="datetime-local"
+                        id="deadline_at"
+                        name="deadline_at"
+                        value="{% if assignment.deadline_at %}{{ assignment.deadline_at|localtime|date:"Y-m-d\\TH:i" }}{% endif %}"
+                    >
+                    <p class="meta">Uses the instructor timezone.</p>
+                </div>
                 <div class="settings-row split">
                     <div>
                         <label for="viva_duration_minutes">Duration</label>
@@ -64,13 +75,30 @@
                             </label>
                         </div>
                     </div>
-                    <div>
-                        <label for="feedback_visibility">Feedback visibility</label>
-                        <select id="feedback_visibility" name="feedback_visibility">
-                            <option value="immediate" {% if assignment.feedback_visibility == "immediate" %}selected{% endif %}>Show immediately</option>
-                            <option value="after_review" {% if assignment.feedback_visibility == "after_review" %}selected{% endif %}>After teacher review</option>
-                            <option value="hidden" {% if assignment.feedback_visibility == "hidden" %}selected{% endif %}>Hide</option>
-                        </select>
+                </div>
+                <div class="settings-row">
+                    <label>Feedback visibility</label>
+                    <div class="tracking-table">
+                        <div class="tracking-item">
+                            <div>
+                                <div class="tracking-label">Show AI feedback</div>
+                                <div class="meta">AI feedback is visible to students.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="ai_feedback_visible" {% if assignment.ai_feedback_visible %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="tracking-item">
+                            <div>
+                                <div class="tracking-label">Show teacher feedback</div>
+                                <div class="meta">Teacher feedback is visible to students.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" name="teacher_feedback_visible" {% if assignment.teacher_feedback_visible %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-row">

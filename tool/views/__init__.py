@@ -1,6 +1,6 @@
 from .launch import index, lti_login, lti_launch, jwks, landing
 from .deeplink import deeplink, deeplink_submit
-from .assignment import assignment_view, assignment_edit, assignment_edit_save, assignment_feedback_release
+from .assignment import assignment_view, assignment_edit, assignment_edit_save, assignment_feedback_release, student_attempt_download
 from .submission import (
     submit_text,
     submit_file,
@@ -17,6 +17,8 @@ from .home import home
 from .standalone import (
     standalone_signup,
     standalone_login,
+    standalone_password_reset,
+    standalone_password_reset_confirm,
     standalone_logout,
     standalone_app_home,
     standalone_assignment_create,
@@ -30,5 +32,7 @@ from .standalone import (
     standalone_student_entry,
     standalone_invite_accept_logged_in,
     standalone_self_enroll,
+    standalone_self_enroll_password_reset,
+    standalone_self_enroll_password_reset_confirm,
     verify_instructor,
 )

@@ -8,6 +8,8 @@ urlpatterns = [
     # Standalone auth + app
     path("app/signup/", views.standalone_signup, name="standalone_signup"),
     path("app/login/", views.standalone_login, name="standalone_login"),
+    path("app/password-reset/", views.standalone_password_reset, name="standalone_password_reset"),
+    path("app/password-reset/<str:uidb64>/<str:token>/", views.standalone_password_reset_confirm, name="standalone_password_reset_confirm"),
     path("app/logout/", views.standalone_logout, name="standalone_logout"),
     path("app/", views.standalone_app_home, name="standalone_app_home"),
     path("app/assignments/new/", views.standalone_assignment_create, name="standalone_assignment_create"),
@@ -20,6 +22,8 @@ urlpatterns = [
     path("app/student/assignments/<slug:slug>/", views.standalone_student_entry, name="standalone_student_entry"),
     path("app/student/invites/<str:token>/accept/", views.standalone_invite_accept_logged_in, name="standalone_invite_accept_logged_in"),
     path("app/join/<str:token>/", views.standalone_self_enroll, name="standalone_self_enroll"),
+    path("app/join/<str:token>/password-reset/", views.standalone_self_enroll_password_reset, name="standalone_self_enroll_password_reset"),
+    path("app/join/<str:token>/password-reset/<str:uidb64>/<str:reset_token>/", views.standalone_self_enroll_password_reset_confirm, name="standalone_self_enroll_password_reset_confirm"),
     path("invite/<str:token>/", views.accept_invite, name="accept_invite"),
     path("app/verify/<str:token>/", views.verify_instructor, name="verify_instructor"),
 
@@ -40,6 +44,7 @@ urlpatterns = [
     path("assignment/edit/", views.assignment_edit, name="assignment_edit"),
     path("assignment/edit/save/", views.assignment_edit_save, name="assignment_edit_save"),
     path("assignment/feedback/release/", views.assignment_feedback_release, name="assignment_feedback_release"),
+    path("assignment/attempts/<int:session_id>/download/", views.student_attempt_download, name="student_attempt_download"),
 
     # Student Submission
     path("submit_text/", views.submit_text, name="submit_text"),

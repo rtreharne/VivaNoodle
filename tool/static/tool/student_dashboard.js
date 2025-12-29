@@ -69,8 +69,8 @@ document.addEventListener("DOMContentLoaded", () => {
     attemptsLeft = Number.isFinite(attemptsLeft) ? attemptsLeft : 0;
     let attemptsUsed = parseInt(pageEl?.dataset.attemptsUsed || "", 10);
     attemptsUsed = Number.isFinite(attemptsUsed) ? attemptsUsed : 0;
-    const feedbackVisibility = pageEl?.dataset.feedbackVisibility || "immediate";
-    const feedbackReleased = pageEl?.dataset.feedbackReleased === "true";
+    const aiFeedbackVisible = pageEl?.dataset.aiFeedbackVisible === "true";
+    const teacherFeedbackVisible = pageEl?.dataset.teacherFeedbackVisible === "true";
     const historiesScript = document.getElementById("session-histories-data");
     const sessionHistories = historiesScript ? JSON.parse(historiesScript.textContent || "{}") : {};
     const filesScript = document.getElementById("session-files-data");
@@ -81,6 +81,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const sessionFeedback = feedbackScript ? JSON.parse(feedbackScript.textContent || "{}") : {};
     const instructorToggleEnabled = pageEl?.dataset.instructorToggleEnabled === "true";
     const allowEarlySubmit = pageEl?.dataset.allowEarlySubmit === "true";
+    const allowStudentReport = pageEl?.dataset.allowStudentReport === "true";
+    const deadlinePassed = pageEl?.dataset.deadlinePassed === "true";
     const eventTracking = pageEl?.dataset.eventTracking === "true";
     const keystrokeTracking = pageEl?.dataset.keystrokeTracking === "true";
     const arrhythmicTracking = pageEl?.dataset.arrhythmicTyping === "true";
@@ -101,6 +103,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const vivaChatWindow = document.querySelector("[data-viva-chat-window]");
     const aiFeedbackEl = document.querySelector("[data-ai-feedback]");
     const teacherFeedbackEl = document.querySelector("[data-teacher-feedback]");
+    const teacherFeedbackAuthorEl = document.querySelector("[data-teacher-feedback-author]");
+    const teacherFeedbackCard = document.querySelector("[data-teacher-feedback-card]");
     const aiFeedbackDefault = aiFeedbackEl?.textContent || "";
     const teacherFeedbackDefault = teacherFeedbackEl?.textContent || "";
     const vivaHistoryLayout = document.querySelector("[data-viva-history-layout]");
@@ -154,10 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const isAiFeedbackVisible = () => (
-        feedbackVisibility === "immediate"
-        || (feedbackVisibility === "after_review" && feedbackReleased)
-    );
+    const isAiFeedbackVisible = () => aiFeedbackVisible;
 
     const setHistoryFeedbackVisible = (visible) => {
         if (vivaHistoryLayout) {
@@ -168,19 +169,40 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const updateFeedbackPanel = (aiText, teacherText) => {
+    const updateFeedbackPanel = (aiText, teacherText, teacherAuthor) => {
         if (aiFeedbackEl) {
             aiFeedbackEl.textContent = aiText || aiFeedbackDefault;
         }
+        const hasTeacherText = !!(teacherText && teacherText.trim());
+        const hasTeacherAuthor = !!(teacherAuthor && teacherAuthor.trim());
+        if (teacherFeedbackCard) {
+            const hideTeacher = !teacherFeedbackVisible || (viewingHistory && !hasTeacherText);
+            teacherFeedbackCard.classList.toggle("is-hidden", hideTeacher);
+        }
+        if (teacherFeedbackAuthorEl) {
+            if (hasTeacherText && hasTeacherAuthor) {
+                teacherFeedbackAuthorEl.textContent = `By ${teacherAuthor}`;
+                teacherFeedbackAuthorEl.classList.remove("is-hidden");
+            } else {
+                teacherFeedbackAuthorEl.textContent = "";
+                teacherFeedbackAuthorEl.classList.add("is-hidden");
+            }
+        }
         if (teacherFeedbackEl) {
-            teacherFeedbackEl.textContent = teacherText || teacherFeedbackDefault;
+            if (hasTeacherText) {
+                teacherFeedbackEl.textContent = teacherText;
+            } else if (viewingHistory) {
+                teacherFeedbackEl.textContent = "";
+            } else {
+                teacherFeedbackEl.textContent = teacherFeedbackDefault;
+            }
         }
     };
 
     const applySessionFeedback = (sessionId) => {
         if (!sessionId) return;
         const fb = sessionFeedback[String(sessionId)] || {};
-        updateFeedbackPanel(fb.ai_text || "", fb.teacher_text || "");
+        updateFeedbackPanel(fb.ai_text || "", fb.teacher_text || "", fb.teacher_author || "");
     };
     const syncInstructorIncludes = () => {
         const rows = document.querySelectorAll("[data-instructor-resource]");
@@ -365,6 +387,13 @@ document.addEventListener("DOMContentLoaded", () => {
         link.dataset.viewSession = sessionId;
         link.textContent = "View";
         actions.appendChild(link);
+        if (allowStudentReport) {
+            const download = document.createElement("a");
+            download.className = "link";
+            download.href = `/assignment/attempts/${sessionId}/download/`;
+            download.textContent = "Download";
+            actions.appendChild(download);
+        }
         row.appendChild(label);
         row.appendChild(actions);
         table.prepend(row);
@@ -673,10 +702,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const hasMaterials = hasSubmissions || getInstructorRows().length > 0;
         const includedCount = collectSelectedSubmissionIds().length;
         const hasRequiredFiles = includedCount > 0 || instructorSelectedCount > 0;
+        const canStartNew = !deadlinePassed;
         startVivaBlocks.forEach((block) => {
             block.classList.toggle("is-hidden", true);
         });
         startVivaBtns.forEach((btn) => {
+            if (!vivaSessionActive && !canStartNew) {
+                btn.disabled = true;
+                return;
+            }
             btn.disabled = vivaSessionActive || (!vivaSessionActive && (!hasRequiredFiles || (!hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasMaterials));
         });
         backToVivaBtns.forEach((btn) => {
@@ -689,8 +723,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (summaryCta) {
             summaryCta.dataset.action = vivaSessionActive ? "resume" : "start";
             summaryCta.textContent = vivaSessionActive ? "Return to viva" : "Start Viva";
-            summaryCta.classList.toggle("is-hidden", (!vivaSessionActive && !hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasMaterials);
-            summaryCta.disabled = (!vivaSessionActive && (!hasRequiredFiles || (!hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasMaterials));
+            summaryCta.classList.toggle("is-hidden", (!vivaSessionActive && (!hasUnlimitedAttempts() && attemptsLeft <= 0)) || !hasMaterials || (!vivaSessionActive && !canStartNew));
+            summaryCta.disabled = (!vivaSessionActive && (!hasRequiredFiles || (!hasUnlimitedAttempts() && attemptsLeft <= 0) || !hasMaterials || !canStartNew));
         }
         if (attemptsMeta) {
             if (hasUnlimitedAttempts()) {

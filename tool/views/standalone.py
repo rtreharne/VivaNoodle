@@ -5,10 +5,14 @@ from django.conf import settings
 from django.db.models import Q
 from django.db import IntegrityError
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseBadRequest
 from django.urls import reverse
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.timezone import now
 from django.core.mail import send_mail
 
@@ -222,6 +226,40 @@ def _domain_allowed(email: str, allowed_domain: str) -> bool:
     return _email_domain(email) == _normalize_domain(allowed_domain)
 
 
+def _get_instructor_user_by_email(email: str):
+    if not email:
+        return None
+    return (
+        User.objects.filter(
+            Q(email__iexact=email) | Q(username__iexact=email),
+            profile__role=UserProfile.ROLE_INSTRUCTOR,
+        )
+        .select_related("profile")
+        .first()
+    )
+
+
+def _get_student_user_by_email(email: str):
+    if not email:
+        return None
+    return (
+        User.objects.filter(
+            Q(email__iexact=email) | Q(username__iexact=email),
+            profile__role=UserProfile.ROLE_STUDENT,
+        )
+        .select_related("profile")
+        .first()
+    )
+
+
+def _get_user_from_uid(uidb64: str):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        return User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return None
+
+
 def standalone_signup(request):
     """
     Instructor-only signup.
@@ -326,6 +364,77 @@ def standalone_login(request):
     })
 
 
+def standalone_password_reset(request):
+    if request.user.is_authenticated:
+        try:
+            profile = request.user.profile
+            if profile.role == UserProfile.ROLE_INSTRUCTOR:
+                return redirect("standalone_app_home")
+            return redirect("standalone_student_assignments")
+        except Exception:
+            return redirect("standalone_login")
+
+    error = None
+    sent = False
+    email = ""
+    if request.method == "POST":
+        email = (request.POST.get("email") or "").strip().lower()
+        if not email:
+            error = "Email is required."
+        else:
+            user = _get_instructor_user_by_email(email)
+            if user:
+                token = default_token_generator.make_token(user)
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                link = request.build_absolute_uri(
+                    reverse("standalone_password_reset_confirm", args=[uid, token])
+                )
+                _send_password_reset_email(user, link)
+            sent = True
+
+    return render(request, "tool/standalone_password_reset.html", {
+        "error": error,
+        "sent": sent,
+        "email": email,
+    })
+
+
+def standalone_password_reset_confirm(request, uidb64, token):
+    user = _get_user_from_uid(uidb64)
+    profile = None
+    if user is not None:
+        try:
+            profile = user.profile
+        except Exception:
+            profile = None
+    valid_user = (
+        user is not None
+        and profile is not None
+        and profile.role == UserProfile.ROLE_INSTRUCTOR
+        and default_token_generator.check_token(user, token)
+    )
+
+    if not valid_user:
+        return render(request, "tool/standalone_password_reset_confirm.html", {
+            "valid": False,
+        })
+
+    form = SetPasswordForm(user, request.POST or None)
+    form.fields["new_password1"].widget.attrs.update({"autocomplete": "new-password"})
+    form.fields["new_password2"].widget.attrs.update({"autocomplete": "new-password"})
+    complete = False
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        complete = True
+
+    return render(request, "tool/standalone_password_reset_confirm.html", {
+        "valid": True,
+        "complete": complete,
+        "form": form,
+    })
+
+
 def standalone_logout(request):
     logout(request)
     return redirect("standalone_login")
@@ -341,6 +450,21 @@ def standalone_app_home(request):
         return redirect("standalone_student_assignments")
 
     assignments = Assignment.objects.filter(owner=request.user).order_by("-id")
+    for assignment in assignments:
+        if not assignment.self_enroll_token:
+            assignment.self_enroll_token = _generate_self_enroll_token()
+            assignment.save(update_fields=["self_enroll_token"])
+        if assignment.self_enroll_token:
+            assignment.self_enroll_link = request.build_absolute_uri(
+                reverse("standalone_self_enroll", args=[assignment.self_enroll_token])
+            )
+            assignment.self_enroll_iframe = (
+                f'<iframe src="{assignment.self_enroll_link}" width="100%" height="700" '
+                f'style="border:0;" title="MachinaViva self-enrol"></iframe>'
+            )
+        else:
+            assignment.self_enroll_link = ""
+            assignment.self_enroll_iframe = ""
     return render(request, "tool/standalone_app_home.html", {
         "assignments": assignments,
     })
@@ -505,6 +629,86 @@ def standalone_self_enroll(request, token):
         "allowed_domain": allowed_domain,
         "error": error,
         "logged_in_user": logged_in_user,
+    })
+
+
+def standalone_self_enroll_password_reset(request, token):
+    assignment = get_object_or_404(Assignment, self_enroll_token=token)
+    allowed_domain = _normalize_domain(assignment.self_enroll_domain)
+    error = None
+    sent = False
+    email = ""
+
+    if request.method == "POST":
+        email = (request.POST.get("email") or "").strip().lower()
+        if not email:
+            error = "Email is required."
+        elif allowed_domain and not _domain_allowed(email, allowed_domain):
+            error = f"Email must end with @{allowed_domain} to join this assignment."
+        else:
+            user = _get_student_user_by_email(email)
+            if user:
+                reset_token = default_token_generator.make_token(user)
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                link = request.build_absolute_uri(
+                    reverse(
+                        "standalone_self_enroll_password_reset_confirm",
+                        args=[assignment.self_enroll_token, uid, reset_token],
+                    )
+                )
+                _send_student_password_reset_email(user, link, assignment.title)
+            sent = True
+
+    return render(request, "tool/standalone_self_enroll_password_reset.html", {
+        "assignment": assignment,
+        "allowed_domain": allowed_domain,
+        "error": error,
+        "sent": sent,
+        "email": email,
+    })
+
+
+def standalone_self_enroll_password_reset_confirm(request, token, uidb64, reset_token):
+    assignment = get_object_or_404(Assignment, self_enroll_token=token)
+    allowed_domain = _normalize_domain(assignment.self_enroll_domain)
+    user = _get_user_from_uid(uidb64)
+    profile = None
+    if user is not None:
+        try:
+            profile = user.profile
+        except Exception:
+            profile = None
+
+    email_to_check = (user.email or user.username or "").strip().lower() if user else ""
+    domain_ok = _domain_allowed(email_to_check, allowed_domain) if allowed_domain else True
+    valid_user = (
+        user is not None
+        and profile is not None
+        and profile.role == UserProfile.ROLE_STUDENT
+        and domain_ok
+        and default_token_generator.check_token(user, reset_token)
+    )
+
+    if not valid_user:
+        return render(request, "tool/standalone_self_enroll_password_reset_confirm.html", {
+            "assignment": assignment,
+            "valid": False,
+        })
+
+    form = SetPasswordForm(user, request.POST or None)
+    form.fields["new_password1"].widget.attrs.update({"autocomplete": "new-password"})
+    form.fields["new_password2"].widget.attrs.update({"autocomplete": "new-password"})
+    complete = False
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        complete = True
+
+    return render(request, "tool/standalone_self_enroll_password_reset_confirm.html", {
+        "assignment": assignment,
+        "valid": True,
+        "complete": complete,
+        "form": form,
     })
 
 
@@ -803,6 +1007,38 @@ def _send_verification_email(request, user: User, token: str):
         "Welcome to MachinaViva.\n\n"
         "Please verify your email to activate your instructor account:\n"
         f"{link}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+
+def _send_password_reset_email(user: User, link: str):
+    subject = "Reset your MachinaViva instructor password"
+    body = (
+        "We received a request to reset the password for your MachinaViva instructor account.\n\n"
+        f"Use this link to set a new password:\n{link}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+
+def _send_student_password_reset_email(user: User, link: str, assignment_title: str):
+    subject = "Reset your MachinaViva student password"
+    body = (
+        f"We received a request to reset the password for your MachinaViva student account for \"{assignment_title}\".\n\n"
+        f"Use this link to set a new password:\n{link}\n\n"
         "If you did not request this, you can ignore this email."
     )
     send_mail(

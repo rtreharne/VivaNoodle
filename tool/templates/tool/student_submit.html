@@ -1,4 +1,5 @@
 {% load static %}
+{% load tz %}
 {% now "U" as cachebust %}
 <!DOCTYPE html>
 <html lang="en">
@@ -43,8 +44,8 @@
      data-viva-duration="{{ assignment.viva_duration_seconds|default:600 }}"
      data-attempts-left="{{ attempts_left|default:0 }}"
      data-attempts-used="{{ attempts_used|default:0 }}"
-     data-feedback-visibility="{{ assignment.feedback_visibility|default:'immediate' }}"
-     data-feedback-released="{% if feedback_released %}true{% else %}false{% endif %}"
+     data-ai-feedback-visible="{% if assignment.ai_feedback_visible %}true{% else %}false{% endif %}"
+     data-teacher-feedback-visible="{% if teacher_feedback_visible %}true{% else %}false{% endif %}"
      data-unlimited-attempts="{% if assignment.max_attempts and assignment.max_attempts > 0 %}false{% else %}true{% endif %}"
      data-config-files-included="{% if config_files_included %}true{% else %}false{% endif %}"
      data-event-tracking="{% if assignment.event_tracking %}true{% else %}false{% endif %}"
@@ -52,14 +53,15 @@
      data-arrhythmic-typing="{% if assignment.arrhythmic_typing %}true{% else %}false{% endif %}"
      data-model-answers-enabled="{% if assignment.enable_model_answers %}true{% else %}false{% endif %}"
      data-instructor-toggle-enabled="{% if assignment.allow_student_resource_toggle %}true{% else %}false{% endif %}"
-     data-allow-early-submit="{% if assignment.allow_early_submission %}true{% else %}false{% endif %}">
+     data-allow-early-submit="{% if assignment.allow_early_submission %}true{% else %}false{% endif %}"
+     data-allow-student-report="{% if assignment.allow_student_report %}true{% else %}false{% endif %}"
+     data-deadline-passed="{% if deadline_passed %}true{% else %}false{% endif %}">
 
     <header class="nav nav-spread">
         <div class="brand">
             <span class="brand-mark">MV</span>
             <span>MachinaViva</span>
         </div>
-        <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
         <div class="nav-actions">
             {% if request.user.is_authenticated %}
             <a class="view-btn" href="{% url 'standalone_student_assignments' %}">My assignments</a>
@@ -80,6 +82,23 @@
     </header>
 
     <section class="section dash-compact">
+        <div class="standalone-header">
+            <div>
+                <h2>{{ assignment.title|default:"Viva assignment" }}</h2>
+                <p class="standalone-muted monospace">{{ assignment.slug }}</p>
+                {% if assignment.owner %}
+                    {% with owner_name=assignment.owner.get_full_name %}
+                        {% if owner_name %}
+                            <p class="standalone-muted">Instructor: {{ owner_name }}</p>
+                        {% elif assignment.owner.email %}
+                            <p class="standalone-muted">Instructor: {{ assignment.owner.email }}</p>
+                        {% elif assignment.owner.username %}
+                            <p class="standalone-muted">Instructor: {{ assignment.owner.username }}</p>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            </div>
+        </div>
 
         <div class="settings-grid single-column">
             <div class="settings-form-card" data-viva-summary-card>
@@ -97,14 +116,26 @@
                         {% endif %}
                     </div>
                     {% if latest_submission %}
-                        {% if viva_status != "completed" or attempts_left|default:0 > 0 or assignment.max_attempts|default:0 <= 0 %}
+                        {% if viva_status == "in_progress" %}
                             <button class="control-btn ghost"
                                     type="button"
                                     data-summary-cta
                                     data-start-url="{% url 'viva_start' latest_submission.id %}"
-                                    data-cta-state="{% if viva_status == 'in_progress' %}active{% else %}ready{% endif %}">
-                                {% if viva_status == "in_progress" %}Return to viva{% else %}Start Viva{% endif %}
+                                    data-cta-state="active">
+                                Return to viva
                             </button>
+                        {% else %}
+                            {% if not deadline_passed %}
+                                {% if viva_status != "completed" or attempts_left|default:0 > 0 or assignment.max_attempts|default:0 <= 0 %}
+                                    <button class="control-btn ghost"
+                                            type="button"
+                                            data-summary-cta
+                                            data-start-url="{% url 'viva_start' latest_submission.id %}"
+                                            data-cta-state="ready">
+                                        Start Viva
+                                    </button>
+                                {% endif %}
+                            {% endif %}
                         {% endif %}
                     {% endif %}
                 </div>
@@ -125,6 +156,8 @@
                                     <a class="control-btn" href="{% url 'viva_summary' session.id %}">View summary</a>
                                 </div>
                             {% endif %}
+                        {% elif deadline_passed %}
+                            <div class="meta">Deadline has passed. You can no longer start a new viva.</div>
                         {% endif %}
                     {% else %}
                         <div class="meta">Submit your work to start the viva.</div>
@@ -138,6 +171,9 @@
                                         <span class="meta">Attempt {{ forloop.revcounter }} · {{ vs.started_at|date:"Y-m-d H:i" }}</span>
                                         <span class="attempt-actions">
                                             <a class="link view-attempt" href="#" data-view-session="{{ vs.id }}">View</a>
+                                            {% if assignment.allow_student_report and vs.ended_at %}
+                                                <a class="link" href="{% url 'student_attempt_download' vs.id %}">Download</a>
+                                            {% endif %}
                                         </span>
                                     </div>
                                 {% endfor %}
@@ -292,7 +328,7 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            <div class="side-card">
+                            <div class="side-card" data-teacher-feedback-card>
                                 <p class="tiny">Teacher feedback</p>
                                 <div class="feedback-block" data-teacher-feedback>
                                     {% if teacher_feedback %}
@@ -301,6 +337,9 @@
                                         Select an attempt to view teacher feedback.
                                     {% endif %}
                                 </div>
+                                <p class="meta{% if not teacher_feedback_author %} is-hidden{% endif %}" data-teacher-feedback-author>
+                                    {% if teacher_feedback_author %}By {{ teacher_feedback_author }}{% endif %}
+                                </p>
                             </div>
                         </aside>
                     </div>
@@ -341,9 +380,47 @@
                     </div>
                 </div>
                 <div class="settings-row">
+                    <label>Deadline</label>
+                    <div class="meta">
+                        {% if assignment.deadline_at %}
+                            {{ assignment.deadline_at|localtime|date:"Y-m-d H:i" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="settings-row">
                     <label>Feedback</label>
                     <div class="meta">
-                        {% if assignment.feedback_visibility == "hidden" %}Feedback hidden{% elif assignment.feedback_visibility == "after_review" %}Feedback after teacher review{% else %}Feedback shown immediately{% endif %}
+                        AI feedback {% if assignment.ai_feedback_visible %}visible{% else %}hidden{% endif %}; teacher feedback {% if teacher_feedback_visible %}visible{% else %}hidden{% endif %}
+                    </div>
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label>Early submission</label>
+                        <div class="meta">{% if assignment.allow_early_submission %}Allowed{% else %}Not allowed{% endif %}</div>
+                    </div>
+                    <div>
+                        <label>Model answers</label>
+                        <div class="meta">{% if assignment.enable_model_answers %}Enabled{% else %}Disabled{% endif %}</div>
+                    </div>
+                </div>
+                <div class="settings-row split">
+                    <div>
+                        <label>Student report</label>
+                        <div class="meta">{% if assignment.allow_student_report %}Enabled{% else %}Disabled{% endif %}</div>
+                    </div>
+                    <div>
+                        <label>Instructor files toggle</label>
+                        <div class="meta">{% if assignment.allow_student_resource_toggle %}Enabled{% else %}Disabled{% endif %}</div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>Tracking</label>
+                    <div class="meta">
+                        Event tracking: {% if assignment.event_tracking %}On{% else %}Off{% endif %},
+                        Keystroke tracking: {% if assignment.keystroke_tracking %}On{% else %}Off{% endif %},
+                        Arrhythmic typing: {% if assignment.arrhythmic_typing %}On{% else %}Off{% endif %}
                     </div>
                 </div>
                 <div class="settings-row">

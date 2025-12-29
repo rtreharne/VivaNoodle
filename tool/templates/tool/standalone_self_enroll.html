@@ -65,6 +65,7 @@
                 <button type="submit" class="view-btn">Log in and join</button>
             </div>
         </form>
+        <p class="muted center-text signup-hint">Forgot your password? <a class="link" href="{% url 'standalone_self_enroll_password_reset' assignment.self_enroll_token %}">Reset it</a></p>
     </div>
 </div>
 {% endblock %}

@@ -1,4 +1,8 @@
 {% extends "tool/standalone_base.html" %}
+{% load static %}
+{% block extra_head %}
+    <script defer src="{% static 'tool/standalone_app_home.js' %}?v={{ cachebust }}"></script>
+{% endblock %}
 {% block page_title %}Assignments{% endblock %}
 {% block content %}
 <div class="standalone-header">
@@ -11,7 +15,51 @@
 <div class="settings-grid max-two">
     <div class="settings-form-card">
         <div class="settings-card-head">
-            <h3 class="settings-title">Create assignment</h3>
+            <h3 class="settings-title">Existing Assignments</h3>
+        </div>
+        {% if assignments %}
+            <div class="table-card">
+                <div class="table-head cols-2">
+                    <div>Title</div>
+                    <div>Actions</div>
+                </div>
+                {% for assignment in assignments %}
+                    <div class="table-row cols-2">
+                        <div>
+                            <div>{{ assignment.title }}</div>
+                            <div class="muted monospace">{{ assignment.slug }}</div>
+                        </div>
+                        <div class="inline-actions">
+                            <a class="pill yes" href="{% url 'standalone_assignment_entry' assignment.slug %}">View</a>
+                            <a class="pill neutral"
+                               href="{% url 'standalone_invites' assignment.slug %}"
+                               data-access-modal-open
+                               data-assignment-title="{{ assignment.title|default:'Assignment'|escape }}"
+                               data-invite-url="{% url 'standalone_invite_create' assignment.slug %}"
+                               data-self-enroll-manage-url="{% url 'standalone_self_enroll_manage' assignment.slug %}"
+                               data-self-enroll-link="{{ assignment.self_enroll_link|escape }}"
+                               data-self-enroll-domain="{{ assignment.self_enroll_domain|default:''|escape }}"
+                               data-self-enroll-iframe="{{ assignment.self_enroll_iframe|escape }}"
+                               aria-label="Manage Access"
+                               title="Manage Access">
+                                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 3v12"></path>
+                                    <path d="M16 7l-4-4-4 4"></path>
+                                    <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="standalone-muted">No assignments yet. Create one to get started.</p>
+        {% endif %}
+    </div>
+
+    <div class="settings-form-card">
+        <div class="settings-card-head">
+            <h3 class="settings-title">Create Assignment</h3>
         </div>
         <form action="{% url 'standalone_assignment_create' %}" method="post" class="settings-grid single-column">
             {% csrf_token %}
@@ -28,33 +76,80 @@
             </div>
         </form>
     </div>
+</div>
 
-    <div class="settings-form-card">
-        <div class="settings-card-head">
-            <h3 class="settings-title">Your existing assignments</h3>
+<div class="invite-modal" data-access-modal>
+    <div class="invite-dialog">
+        <div class="invite-head">
+            <h3 data-access-title>Manage access</h3>
+            <button class="icon-btn" type="button" data-access-modal-close aria-label="Close access modal">&times;</button>
         </div>
-
-        {% if assignments %}
-            <div class="table-card">
-                <div class="table-head cols-2">
-                    <div>Title</div>
-                    <div>Action</div>
+        <div class="settings-grid single-column">
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Invite students via email</h3>
                 </div>
-                {% for assignment in assignments %}
-                    <div class="table-row cols-2">
-                        <div>
-                            <div>{{ assignment.title }}</div>
-                            <div class="muted monospace">{{ assignment.slug }}</div>
-                        </div>
-                        <div class="inline-actions">
-                            <a class="pill yes" href="{% url 'standalone_assignment_entry' assignment.slug %}">View</a>
-                        </div>
+                <form method="post" class="settings-grid single-column" data-invite-form>
+                    {% csrf_token %}
+                    <div class="settings-row">
+                        <label for="invite-email">Student email</label>
+                        <input id="invite-email" name="email" type="email" required placeholder="student@university.edu">
                     </div>
-                {% endfor %}
+                    <div class="settings-row">
+                        <label for="invite-role">Role</label>
+                        <select id="invite-role" name="role">
+                            <option value="student" selected>Student</option>
+                            <option value="instructor">Instructor</option>
+                        </select>
+                    </div>
+                    <div class="settings-actions">
+                        <button type="submit" class="view-btn">Send invite</button>
+                        <button type="button" class="view-btn ghost" data-access-modal-close>Cancel</button>
+                    </div>
+                    <p class="meta">We'll email a secure link. Pending invites stay in the roster until they are accepted.</p>
+                    <p class="meta status-line" data-invite-status></p>
+                </form>
             </div>
-        {% else %}
-            <p class="standalone-muted">No assignments yet. Create one to get started.</p>
-        {% endif %}
+
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Self-enrol link</h3>
+                </div>
+                <form method="post" class="settings-grid single-column" data-self-enroll-form>
+                    {% csrf_token %}
+                    <div class="settings-row">
+                        <label for="self-enroll-link">Share link</label>
+                        <input id="self-enroll-link" type="text" value="" readonly data-self-enroll-link>
+                        <div class="meta">Share this link so students can self-enrol.</div>
+                    </div>
+                    <div class="settings-row">
+                        <label for="self-enroll-domain">Allowed email domain (optional)</label>
+                        <input id="self-enroll-domain" name="self_enroll_domain" type="text" value="" placeholder="example.edu">
+                        <div class="meta">Leave blank to allow any domain.</div>
+                    </div>
+                    <div class="settings-actions">
+                        <button type="button" class="view-btn ghost" data-copy-target="self-enroll-link">Copy link</button>
+                        <button type="submit" class="view-btn">Save domain</button>
+                        <button type="submit" class="view-btn ghost" name="action" value="regenerate">Regenerate link</button>
+                    </div>
+                    <p class="meta status-line" data-self-enroll-status></p>
+                </form>
+            </div>
+
+            <div class="settings-form-card">
+                <div class="settings-card-head">
+                    <h3 class="settings-title">Embed code</h3>
+                </div>
+                <div class="settings-row">
+                    <label for="self-enroll-iframe">Iframe snippet</label>
+                    <textarea id="self-enroll-iframe" rows="4" readonly></textarea>
+                    <div class="meta">Paste this into your course site to embed self-enrol.</div>
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="view-btn ghost" data-copy-target="self-enroll-iframe">Copy iframe</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

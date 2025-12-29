@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tableNote = document.querySelector("[data-table-note]");
     const tableNoteTop = document.querySelector("[data-table-note-top]");
     const filterInput = document.querySelector("[data-student-filter]");
+    const dashboardControls = document.querySelector("[data-dashboard-controls]");
     const transcriptSelect = document.querySelector("[data-transcript-select]");
     const attemptSelect = document.querySelector("[data-attempt-select]");
     const transcriptChat = document.querySelector("[data-transcript-chat]");
@@ -21,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const aiFeedbackEl = document.querySelector("[data-ai-feedback]");
     const teacherFeedbackForm = document.querySelector("[data-teacher-feedback-form]");
     const teacherFeedbackInput = document.querySelector("[data-teacher-feedback-input]");
+    const teacherFeedbackAuthorEl = document.querySelector("[data-teacher-feedback-author]");
     const teacherFeedbackStatus = document.querySelector("[data-teacher-feedback-status]");
     const previewModal = document.querySelector("[data-preview-modal]");
     const previewContent = document.querySelector("[data-preview-content]");
@@ -62,6 +64,9 @@ document.addEventListener("DOMContentLoaded", () => {
         viewPanes.forEach(pane => {
             pane.classList.toggle("active", pane.dataset.viewPane === target);
         });
+        if (dashboardControls) {
+            dashboardControls.classList.toggle("is-hidden", target !== "dashboard");
+        }
     };
 
     viewButtons.forEach(btn => {
@@ -489,6 +494,18 @@ document.addEventListener("DOMContentLoaded", () => {
         if (teacherFeedbackInput) {
             teacherFeedbackInput.value = feedback?.teacher_text || "";
             teacherFeedbackInput.disabled = !activeFeedbackSessionId;
+        }
+        if (teacherFeedbackAuthorEl) {
+            const author = feedback?.teacher_author || "";
+            const hasAuthor = !!(author && author.trim());
+            const hasText = !!(feedback?.teacher_text || "").trim();
+            if (hasAuthor && hasText) {
+                teacherFeedbackAuthorEl.textContent = `By ${author}`;
+                teacherFeedbackAuthorEl.classList.remove("is-hidden");
+            } else {
+                teacherFeedbackAuthorEl.textContent = "";
+                teacherFeedbackAuthorEl.classList.add("is-hidden");
+            }
         }
         if (teacherFeedbackForm) {
             const saveBtn = teacherFeedbackForm.querySelector("button[type='submit']");
@@ -1029,7 +1046,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     const text = await res.text();
                     throw new Error(text || "Save failed");
                 }
+                const data = await res.json().catch(() => ({}));
                 setStatus(teacherFeedbackStatus, "Saved", "success");
+                if (teacherFeedbackAuthorEl) {
+                    const author = data.teacher_feedback_author || "";
+                    const text = data.teacher_feedback || "";
+                    if (author && text) {
+                        teacherFeedbackAuthorEl.textContent = `By ${author}`;
+                        teacherFeedbackAuthorEl.classList.remove("is-hidden");
+                    } else {
+                        teacherFeedbackAuthorEl.textContent = "";
+                        teacherFeedbackAuthorEl.classList.add("is-hidden");
+                    }
+                }
             } catch (err) {
                 setStatus(teacherFeedbackStatus, "Unable to save right now.", "error");
             }

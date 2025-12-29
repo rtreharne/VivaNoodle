@@ -58,6 +58,16 @@ FALLBACK_AI_REPLY = "Thanks. Could you clarify that point a little more?"
 FALLBACK_MODEL_ANSWER = "The submission does not provide enough detail to answer this directly, but a reasonable response would restate the relevant claim and support it with evidence from the work."
 
 
+def _format_feedback_author(user):
+    if not user:
+        return ""
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+    if first or last:
+        return f"{first} {last}".strip()
+    return user.email or user.username or ""
+
+
 def parse_viva_payload(raw_text):
     if not raw_text:
         return "", ""
@@ -313,6 +323,8 @@ def viva_start(request, submission_id):
         return HttpResponseBadRequest("Forbidden")
 
     assignment = sub.assignment
+    if assignment.deadline_at and now() >= assignment.deadline_at:
+        return HttpResponseBadRequest("Deadline passed")
     user_subs = Submission.objects.filter(
         assignment=assignment,
         user_id=sub.user_id,
@@ -499,11 +511,7 @@ def viva_send_message(request):
                 session.save(update_fields=["feedback_text"])
 
         assignment = session.submission.assignment
-        feedback_visible = assignment.feedback_visibility == "immediate" or (
-            assignment.feedback_visibility == "after_review" and assignment.feedback_released_at
-        )
-        if assignment.feedback_visibility == "hidden":
-            feedback_visible = False
+        feedback_visible = bool(assignment.ai_feedback_visible)
 
         return JsonResponse({
             "status": "ok",
@@ -574,11 +582,17 @@ def viva_feedback_update(request, session_id):
 
     teacher_feedback = (payload.get("teacher_feedback") or "").strip()
     session.teacher_feedback_text = teacher_feedback
-    session.save(update_fields=["teacher_feedback_text"])
+    if teacher_feedback:
+        if request.user.is_authenticated:
+            session.teacher_feedback_author = request.user
+    else:
+        session.teacher_feedback_author = None
+    session.save(update_fields=["teacher_feedback_text", "teacher_feedback_author"])
 
     return JsonResponse({
         "status": "ok",
         "teacher_feedback": teacher_feedback,
+        "teacher_feedback_author": _format_feedback_author(session.teacher_feedback_author),
     })
 
 

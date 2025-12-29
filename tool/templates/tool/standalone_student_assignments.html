@@ -1,29 +1,37 @@
 {% extends "tool/standalone_base.html" %}
+{% load tz %}
 {% block page_title %}Standalone | My assignments{% endblock %}
 {% block content %}
 <div class="standalone-header">
     <div>
-        <p class="eyebrow">Student</p>
-        <h2>Assignments</h2>
-        <p class="lede">Accept invites to see available vivas and continue where you left off.</p>
+        <h2>My Viva Assignments</h2>
+        <p class="lede">View invites, open assigned vivas, and return to any attempt already in progress.</p>
     </div>
 </div>
 
 {% if invites %}
     <div class="table-card" style="margin-top:20px;">
-        <div class="table-head cols-3">
+        <div class="table-head cols-4">
             <div>Invite</div>
             <div>Expires</div>
+            <div>Deadline</div>
             <div>Action</div>
         </div>
         {% for invite in invites %}
-            <div class="table-row cols-3">
+            <div class="table-row cols-4">
                 <div>{{ invite.assignment.title }}</div>
                 <div class="meta">
                     {% if invite.is_expired %}
                         Expired
                     {% else %}
                         {{ invite.expires_at }}
+                    {% endif %}
+                </div>
+                <div class="meta">
+                    {% if invite.assignment.deadline_at %}
+                        {{ invite.assignment.deadline_at|localtime|date:"Y-m-d H:i" }}
+                    {% else %}
+                        -
                     {% endif %}
                 </div>
                 <div class="inline-actions">
@@ -43,15 +51,23 @@
 
 {% if memberships %}
     <div class="table-card" style="margin-top:20px;">
-        <div class="table-head cols-3">
+        <div class="table-head cols-4">
             <div>Title</div>
             <div>Added</div>
+            <div>Deadline</div>
             <div>Action</div>
         </div>
         {% for membership in memberships %}
-            <div class="table-row cols-3">
+            <div class="table-row cols-4">
                 <div>{{ membership.assignment.title }}</div>
                 <div class="meta">{{ membership.created_at }}</div>
+                <div class="meta">
+                    {% if membership.assignment.deadline_at %}
+                        {{ membership.assignment.deadline_at|localtime|date:"Y-m-d H:i" }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
                 <div class="inline-actions">
                     {% if membership.active_viva %}
                         <a class="pill neutral throb" href="{% url 'standalone_student_entry' membership.assignment.slug %}">Return to Viva in progress</a>

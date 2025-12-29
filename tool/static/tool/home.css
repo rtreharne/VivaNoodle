@@ -1230,7 +1230,6 @@ a.link {
     color: #e5e7eb;
     display: grid;
     gap: 6px;
-    white-space: pre-wrap;
 }
 
 .feedback-block strong {
@@ -1247,6 +1246,10 @@ a.link {
 
 .feedback-form .settings-row textarea {
     min-height: 120px;
+}
+
+.feedback-form [data-teacher-feedback-input] {
+    margin-bottom: 8px;
 }
 
 @media (max-width: 900px) {
@@ -3192,6 +3195,7 @@ a.link {
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
+    margin-bottom: 18px;
 }
 
 .standalone-actions {
@@ -3267,7 +3271,7 @@ a.link {
     color: #9fb5cf;
 }
 .status-line[data-tone="success"] {
-    color: #34d399;
+    color: #38bdf8;
 }
 .status-line[data-tone="error"] {
     color: #f87171;

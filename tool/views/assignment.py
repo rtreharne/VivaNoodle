@@ -1,9 +1,11 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.urls import reverse
+from django.utils.text import slugify
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
 from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaSessionSubmission, InteractionLog, AssignmentResource, AssignmentResourcePreference, VivaSessionResource, AssignmentInvitation, AssignmentMembership
 from datetime import datetime
+from django.utils import timezone
 from django.utils.timezone import now
 from .viva import compute_integrity_flags
 import json
@@ -16,6 +18,16 @@ def _generate_self_enroll_token():
         if not Assignment.objects.filter(self_enroll_token=token).exists():
             return token
     return secrets.token_urlsafe(32)
+
+
+def _format_feedback_author(user):
+    if not user:
+        return ""
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+    if first or last:
+        return f"{first} {last}".strip()
+    return user.email or user.username or ""
 
 
 def assignment_edit(request):
@@ -75,13 +87,10 @@ def assignment_edit_save(request):
 
     # Tone and feedback visibility
     assignment.viva_tone = request.POST.get("viva_tone", assignment.viva_tone)
-    new_feedback_visibility = request.POST.get("feedback_visibility", assignment.feedback_visibility)
-    if new_feedback_visibility != assignment.feedback_visibility:
-        if new_feedback_visibility != "after_review":
-            assignment.feedback_released_at = None
-        else:
-            assignment.feedback_released_at = None
-    assignment.feedback_visibility = new_feedback_visibility
+    assignment.ai_feedback_visible = (request.POST.get("ai_feedback_visible") == "on")
+    assignment.teacher_feedback_visible = (request.POST.get("teacher_feedback_visible") == "on")
+    assignment.feedback_visibility = "immediate" if assignment.ai_feedback_visible else "hidden"
+    assignment.feedback_released_at = None
 
     # Viva instructions & notes
     assignment.viva_instructions = request.POST.get("viva_instructions", "")
@@ -91,6 +100,18 @@ def assignment_edit_save(request):
     # Report/download permission
     assignment.allow_student_report = (request.POST.get("allow_student_report") == "on")
     assignment.allow_early_submission = (request.POST.get("allow_early_submission") == "on")
+    deadline_raw = (request.POST.get("deadline_at") or "").strip()
+    if deadline_raw:
+        try:
+            deadline_naive = datetime.strptime(deadline_raw, "%Y-%m-%dT%H:%M")
+            assignment.deadline_at = timezone.make_aware(
+                deadline_naive,
+                timezone.get_current_timezone(),
+            )
+        except ValueError:
+            pass
+    else:
+        assignment.deadline_at = None
 
     # New tracking fields
     assignment.keystroke_tracking = (request.POST.get("keystroke_tracking") == "on")
@@ -133,6 +154,84 @@ def assignment_feedback_release(request):
 
     return redirect("assignment_view")
 
+
+def student_attempt_download(request, session_id):
+    try:
+        session = VivaSession.objects.select_related(
+            "submission__assignment",
+            "teacher_feedback_author",
+        ).get(id=session_id)
+    except VivaSession.DoesNotExist:
+        return HttpResponseBadRequest("Invalid session ID")
+
+    assignment = session.submission.assignment
+    if not assignment.allow_student_report:
+        return HttpResponse("Forbidden", status=403)
+
+    lti_user_id = request.session.get("lti_user_id")
+    if lti_user_id:
+        if str(lti_user_id) != str(session.submission.user_id):
+            return HttpResponse("Forbidden", status=403)
+    elif request.user.is_authenticated:
+        if str(session.submission.user_id) != str(request.user.id):
+            return HttpResponse("Forbidden", status=403)
+    else:
+        return HttpResponse("Forbidden", status=403)
+
+    if not session.ended_at:
+        return HttpResponseBadRequest("Attempt not completed")
+
+    legacy_visibility = (assignment.feedback_visibility or "").lower()
+    legacy_ai_visible = legacy_visibility not in ("hidden", "after_review")
+    ai_visible = bool(assignment.ai_feedback_visible) or legacy_ai_visible
+    teacher_visible = bool(assignment.teacher_feedback_visible)
+
+    duration_seconds = session.duration_seconds
+    if not duration_seconds and session.started_at and session.ended_at:
+        duration_seconds = int((session.ended_at - session.started_at).total_seconds())
+
+    lines = []
+    lines.append(f"Assignment: {assignment.title or 'Viva assignment'}")
+    if assignment.slug:
+        lines.append(f"Slug: {assignment.slug}")
+    lines.append(f"Attempt ID: {session.id}")
+    if session.started_at:
+        lines.append(f"Started: {session.started_at.isoformat()}")
+    if session.ended_at:
+        lines.append(f"Ended: {session.ended_at.isoformat()}")
+    if duration_seconds:
+        lines.append(f"Duration seconds: {duration_seconds}")
+    lines.append("")
+    lines.append("Transcript:")
+
+    messages = VivaMessage.objects.filter(session=session).order_by("timestamp")
+    if messages.exists():
+        for msg in messages:
+            sender = "AI" if (msg.sender or "").lower() == "ai" else "Student"
+            text = (msg.text or "").strip()
+            lines.append(f"{sender}: {text}")
+    else:
+        lines.append("No transcript available.")
+
+    if ai_visible and session.feedback_text:
+        lines.append("")
+        lines.append("AI feedback:")
+        lines.append(session.feedback_text.strip())
+
+    if teacher_visible and session.teacher_feedback_text:
+        lines.append("")
+        lines.append("Teacher feedback:")
+        author = _format_feedback_author(session.teacher_feedback_author)
+        if author:
+            lines.append(f"By {author}")
+        lines.append(session.teacher_feedback_text.strip())
+
+    content = "\n".join(lines).strip() + "\n"
+    filename_base = slugify(assignment.slug or assignment.title or "viva") or "viva"
+    filename = f"{filename_base}-attempt-{session.id}.txt"
+    response = HttpResponse(content, content_type="text/plain; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def assignment_view(request):
@@ -208,6 +307,22 @@ def assignment_view(request):
             feedback_visibility = custom.get("feedback_visibility")
             if feedback_visibility:
                 assignment.feedback_visibility = feedback_visibility
+                if feedback_visibility == "hidden":
+                    assignment.ai_feedback_visible = False
+                    assignment.teacher_feedback_visible = False
+                elif feedback_visibility == "after_review":
+                    assignment.ai_feedback_visible = False
+                    assignment.teacher_feedback_visible = True
+                else:
+                    assignment.ai_feedback_visible = True
+                    assignment.teacher_feedback_visible = True
+
+            ai_feedback_visible = custom.get("ai_feedback_visible")
+            if ai_feedback_visible is not None:
+                assignment.ai_feedback_visible = as_bool(ai_feedback_visible, default=assignment.ai_feedback_visible)
+            teacher_feedback_visible = custom.get("teacher_feedback_visible")
+            if teacher_feedback_visible is not None:
+                assignment.teacher_feedback_visible = as_bool(teacher_feedback_visible, default=assignment.teacher_feedback_visible)
 
             assignment.allow_student_report = as_bool(
                 custom.get("allow_student_report"),
@@ -428,7 +543,7 @@ def assignment_view(request):
             sessions_qs = VivaSession.objects.filter(
                 submission__assignment=assignment,
                 submission__user_id__in=candidate_ids or [uid],
-            ).order_by("-started_at")
+            ).select_related("teacher_feedback_author").order_by("-started_at")
             active_session = sessions_qs.filter(ended_at__isnull=True).first()
             latest_session = sessions_qs.first()
             session = active_session or latest_session
@@ -498,9 +613,11 @@ def assignment_view(request):
                         for m in msgs
                     ]
 
+                    teacher_author = _format_feedback_author(sess.teacher_feedback_author)
                     feedback = {
                         "ai_text": sess.feedback_text or "",
                         "teacher_text": sess.teacher_feedback_text or "",
+                        "teacher_author": teacher_author,
                     }
                     if not (feedback["ai_text"] or feedback["teacher_text"]):
                         feedback = None
@@ -688,12 +805,15 @@ def assignment_view(request):
     remaining_seconds = None
     ai_feedback_text = ""
     teacher_feedback_text = ""
+    teacher_feedback_author = ""
+    ai_feedback_visible = bool(assignment.ai_feedback_visible)
+    teacher_feedback_visible = bool(assignment.teacher_feedback_visible)
     flags = []
     has_any_submission = student_submissions_all.exists() or bool(placeholder_submission)
     sessions = VivaSession.objects.filter(
         submission__assignment=assignment,
         submission__user_id=user_id
-    ).order_by("-started_at") if has_any_submission else VivaSession.objects.none()
+    ).select_related("teacher_feedback_author").order_by("-started_at") if has_any_submission else VivaSession.objects.none()
     active_session = sessions.filter(ended_at__isnull=True).first()
     session = active_session or sessions.first()
     latest_submission = None
@@ -711,6 +831,12 @@ def assignment_view(request):
         remaining_seconds = max(0, duration - int(elapsed))
         status = "completed" if session.ended_at else "in_progress"
         flags = compute_integrity_flags(session)
+        if teacher_feedback_visible:
+            teacher_feedback_text = session.teacher_feedback_text or ""
+            teacher_feedback_author = _format_feedback_author(session.teacher_feedback_author)
+        else:
+            teacher_feedback_text = ""
+            teacher_feedback_author = ""
     elif latest:
         status = "submitted"
 
@@ -734,11 +860,6 @@ def assignment_view(request):
         })
 
     feedback_released = bool(assignment.feedback_released_at)
-    ai_feedback_visible = assignment.feedback_visibility == "immediate" or (
-        assignment.feedback_visibility == "after_review" and feedback_released
-    )
-    if assignment.feedback_visibility == "hidden":
-        ai_feedback_visible = False
 
     max_attempts = assignment.max_attempts
     session_histories = {}
@@ -819,14 +940,12 @@ def assignment_view(request):
 
     ai_feedback_message = ""
     if not ai_feedback_visible:
-        if assignment.feedback_visibility == "after_review":
-            ai_feedback_message = "AI feedback will appear after teacher review."
-        elif assignment.feedback_visibility == "hidden":
-            ai_feedback_message = "AI feedback is hidden for this assignment."
-        else:
-            ai_feedback_message = "AI feedback is being prepared."
+        ai_feedback_message = "AI feedback is hidden for this assignment."
 
     duration_minutes = int(assignment.viva_duration_seconds / 60) if assignment.viva_duration_seconds else None
+    deadline_passed = False
+    if assignment.deadline_at:
+        deadline_passed = now() >= assignment.deadline_at
 
     default_resource_entries = [
         {
@@ -866,7 +985,8 @@ def assignment_view(request):
             if ai_text or teacher_text:
                 session_feedback[str(s.id)] = {
                     "ai_text": ai_text,
-                    "teacher_text": teacher_text,
+                    "teacher_text": teacher_text if teacher_feedback_visible else "",
+                    "teacher_author": _format_feedback_author(s.teacher_feedback_author) if teacher_feedback_visible else "",
                 }
 
     user_email = ""
@@ -888,10 +1008,13 @@ def assignment_view(request):
         "ai_feedback": ai_feedback_text if ai_feedback_visible else "",
         "ai_feedback_message": ai_feedback_message,
         "teacher_feedback": teacher_feedback_text,
+        "teacher_feedback_author": teacher_feedback_author,
+        "teacher_feedback_visible": teacher_feedback_visible,
         "feedback_released": feedback_released,
         "allow_student_report": assignment.allow_student_report,
         "flags": flags,
         "duration_minutes": duration_minutes,
+        "deadline_passed": deadline_passed,
         "attempts_left": attempts_left,
         "attempts_used": existing_sessions,
         "session": active_session,

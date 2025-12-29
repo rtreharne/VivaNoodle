@@ -39,12 +39,20 @@ class Assignment(models.Model):
     feedback_visibility = models.CharField(
         max_length=50,
         default="immediate",
-        help_text="When students can see AI feedback: immediate, after_review, or hidden."
+        help_text="Legacy AI feedback visibility flag."
+    )
+    ai_feedback_visible = models.BooleanField(
+        default=True,
+        help_text="Allow students to see AI feedback."
+    )
+    teacher_feedback_visible = models.BooleanField(
+        default=True,
+        help_text="Allow students to see teacher feedback."
     )
     feedback_released_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When AI feedback was released to students (for after_review mode)."
+        help_text="Legacy AI feedback release timestamp."
     )
 
     allow_student_report = models.BooleanField(
@@ -54,6 +62,11 @@ class Assignment(models.Model):
     allow_early_submission = models.BooleanField(
         default=False,
         help_text="Allow students to submit the viva before time expires."
+    )
+    deadline_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline for the viva (instructor timezone)."
     )
 
     additional_prompts = models.TextField(
@@ -120,6 +133,13 @@ class VivaSession(models.Model):
     duration_seconds = models.IntegerField(null=True, blank=True)  # optional
     feedback_text = models.TextField(blank=True)
     teacher_feedback_text = models.TextField(blank=True)
+    teacher_feedback_author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="viva_teacher_feedback",
+    )
     rating = models.IntegerField(null=True, blank=True)
 
     def __str__(self):

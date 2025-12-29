@@ -1,4 +1,5 @@
 {% load static %}
+{% load tz %}
 {% now "U" as cachebust %}
 <!DOCTYPE html>
 <html lang="en">
@@ -17,14 +18,9 @@
             <span class="brand-mark">MV</span>
             <span>MachinaViva</span>
         </div>
-        {% if from_standalone %}
-            <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
-        {% endif %}
         <div class="nav-actions view-toggle">
             {% if from_standalone %}
                 <a class="view-btn" href="{% url 'standalone_app_home' %}">My assignments</a>
-                <button class="view-btn active" data-view-switch="dashboard">Roster</button>
-                <button class="view-btn" data-view-switch="settings">Viva settings</button>
                 <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">☀</button>
                 <span class="user-chip">
                     {{ request.user.email|default:request.user.username }}
@@ -40,19 +36,32 @@
     </header>
 
     <section id="dashboard" class="section dash-compact">
+        <div class="standalone-header">
+            <div>
+                <h2>{{ assignment.title|default:"Viva assignment" }}</h2>
+            </div>
+        </div>
+        <div class="table-controls table-controls-split">
+            <div class="table-controls-left">
+                {% if from_standalone %}
+                    <button class="view-btn active" data-view-switch="dashboard">Roster</button>
+                    <button class="view-btn" data-view-switch="settings">Viva settings</button>
+                    <a class="view-btn" href="#" data-access-modal-open aria-label="Manage Access" title="Manage Access">
+                        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 3v12"></path>
+                            <path d="M16 7l-4-4-4 4"></path>
+                            <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+                        </svg>
+                    </a>
+                {% endif %}
+            </div>
+            <div class="table-controls-right" data-dashboard-controls>
+                <input type="search" class="filter-input" placeholder="Filter students by name..." aria-label="Filter students" data-student-filter>
+            </div>
+        </div>
         <div class="dash-view active" data-view-pane="dashboard">
             <div class="carousel">
                 <div class="carousel-pane active" data-dash-pane="table">
-                        <div class="table-controls table-controls-split">
-                            <div class="table-controls-left">
-                                {% if from_standalone %}
-                                <a class="pill neutral" href="#" data-access-modal-open>Invite students via email</a>
-                                {% endif %}
-                            </div>
-                            <div class="table-controls-right">
-                                <input type="search" class="filter-input" placeholder="Filter students by name..." aria-label="Filter students" data-student-filter>
-                            </div>
-                    </div>
                     <div class="table-card">
                         <div class="table-head">
                             <div>Student</div>
@@ -162,6 +171,7 @@
                                     <div class="settings-row">
                                         <textarea rows="4" placeholder="Add teacher feedback for this attempt." data-teacher-feedback-input></textarea>
                                     </div>
+                                    <p class="meta is-hidden" data-teacher-feedback-author></p>
                                     <div class="settings-actions">
                                         <button class="control-btn" type="submit">Save feedback</button>
                                         <span class="meta status-line" data-teacher-feedback-status></span>
@@ -192,6 +202,16 @@
                         <label for="description">Description</label>
                         <textarea id="description" name="description" rows="2" placeholder="Short summary for staff and students.">{{ assignment.description }}</textarea>
                     </div>
+                    <div class="settings-row">
+                        <label for="deadline_at">Deadline</label>
+                        <input
+                            type="datetime-local"
+                            id="deadline_at"
+                            name="deadline_at"
+                            value="{% if assignment.deadline_at %}{{ assignment.deadline_at|localtime|date:"Y-m-d\\TH:i" }}{% endif %}"
+                        >
+                        <div class="meta">Uses the instructor timezone.</div>
+                    </div>
                     <div class="settings-row split">
                         <div>
                             <label for="viva_duration_minutes">Duration</label>
@@ -217,27 +237,29 @@
                             </select>
                         </div>
                     </div>
-                    <div class="settings-row split">
-                        <div>
-                            <label for="feedback_visibility">Feedback visibility</label>
-                            <select id="feedback_visibility" name="feedback_visibility" data-feedback-visibility>
-                                <option value="immediate" {% if assignment.feedback_visibility == "immediate" %}selected{% endif %}>Show immediately</option>
-                                <option value="after_review" {% if assignment.feedback_visibility == "after_review" %}selected{% endif %}>After teacher review</option>
-                                <option value="hidden" {% if assignment.feedback_visibility == "hidden" %}selected{% endif %}>Hide</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="settings-row {% if assignment.feedback_visibility != 'after_review' %}is-hidden{% endif %}" data-feedback-release-row data-feedback-released="{% if assignment.feedback_released_at %}true{% else %}false{% endif %}">
-                        <label>AI feedback release</label>
-                        <div class="settings-actions">
-                            <button class="control-btn" type="button" data-feedback-release {% if assignment.feedback_released_at %}disabled{% endif %}>Release AI feedback</button>
-                            <span class="meta status-line" data-feedback-release-status>
-                                {% if assignment.feedback_released_at %}
-                                    Released on {{ assignment.feedback_released_at|date:"Y-m-d H:i" }}
-                                {% else %}
-                                    Not released yet
-                                {% endif %}
-                            </span>
+                    <div class="settings-row">
+                        <label>Feedback visibility</label>
+                        <div class="tracking-table">
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Show AI feedback</div>
+                                    <div class="meta">AI feedback is visible to students.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="ai_feedback_visible" {% if assignment.ai_feedback_visible %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="tracking-item">
+                                <div>
+                                    <div class="tracking-label">Show teacher feedback</div>
+                                    <div class="meta">Teacher feedback is visible to students.</div>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="teacher_feedback_visible" {% if assignment.teacher_feedback_visible %}checked{% endif %}>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                     <div class="settings-row">
