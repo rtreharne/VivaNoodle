@@ -8,17 +8,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MachinaViva | Edit Viva Settings</title>
     <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
+    <script defer src="{% static 'tool/nav.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
 <div class="page">
 
-    <header class="nav">
+    <header class="nav nav-with-menu">
         <div class="brand">
             <span class="brand-mark">MV</span>
             <span>MachinaViva</span>
         </div>
         <div class="nav-title">{{ assignment.title|default:"Viva assignment" }}</div>
-        <div class="nav-actions view-toggle">
+        <button class="nav-toggle" data-nav-toggle aria-label="Toggle navigation">Menu</button>
+        <div class="nav-actions view-toggle" data-nav-links>
             <a class="view-btn" href="{% url 'assignment_view' %}">Dashboard</a>
             <a class="view-btn active" href="#">Viva settings</a>
             <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">Light</button>

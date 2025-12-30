@@ -9,11 +9,12 @@
     <title>MachinaViva | Teacher Dashboard</title>
     <link rel="stylesheet" href="{% static 'tool/home.css' %}?v={{ cachebust }}">
     <script defer src="{% static 'tool/teacher_dashboard.js' %}?v={{ cachebust }}"></script>
+    <script defer src="{% static 'tool/nav.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
 <div class="page page-with-footer">
 
-    <header class="nav nav-spread">
+    <header class="nav nav-spread nav-with-menu">
         {% if from_standalone %}
             <a class="brand" href="{% url 'landing_home' %}" aria-label="MachinaViva home">
                 <span class="brand-mark">MV</span>
@@ -25,7 +26,8 @@
                 <span>MachinaViva</span>
             </div>
         {% endif %}
-        <div class="nav-actions view-toggle">
+        <button class="nav-toggle" data-nav-toggle aria-label="Toggle navigation">Menu</button>
+        <div class="nav-actions view-toggle" data-nav-links>
             {% if from_standalone %}
                 <a class="view-btn" href="{% url 'standalone_app_home' %}">My assignments</a>
                 <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">☀</button>
@@ -36,7 +38,22 @@
                 </span>
             {% else %}
                 <button class="view-btn active" data-view-switch="dashboard">Dashboard</button>
-                <button class="view-btn" data-view-switch="settings">Viva settings</button>
+                <button class="view-btn mobile-icon-btn" data-view-switch="settings" aria-label="Viva settings" title="Viva settings">
+                    <span class="icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                            <line x1="4" y1="21" x2="4" y2="14"></line>
+                            <line x1="4" y1="10" x2="4" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12" y2="3"></line>
+                            <line x1="20" y1="21" x2="20" y2="16"></line>
+                            <line x1="20" y1="12" x2="20" y2="3"></line>
+                            <line x1="1" y1="14" x2="7" y2="14"></line>
+                            <line x1="9" y1="8" x2="15" y2="8"></line>
+                            <line x1="17" y1="16" x2="23" y2="16"></line>
+                        </svg>
+                    </span>
+                    <span class="label">Viva settings</span>
+                </button>
                 <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">☀</button>
             {% endif %}
         </div>
@@ -52,27 +69,77 @@
         <div class="table-controls table-controls-split">
             <div class="table-controls-left">
                 {% if from_standalone %}
-                    <button class="view-btn active" data-view-switch="dashboard">Roster</button>
-                    <button class="view-btn" data-view-switch="settings">Viva settings</button>
-                    <a class="view-btn" href="#" data-access-modal-open aria-label="Manage Access" title="Manage Access">
+                    <button class="view-btn mobile-icon-btn active" data-view-switch="dashboard" data-transcript-back aria-label="Roster" title="Roster">
+                        <span class="icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </span>
+                        <span class="label">Roster</span>
+                    </button>
+                    <button class="view-btn mobile-icon-btn" data-view-switch="settings" aria-label="Viva settings" title="Viva settings">
+                        <span class="icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                <line x1="4" y1="21" x2="4" y2="14"></line>
+                                <line x1="4" y1="10" x2="4" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12" y2="3"></line>
+                                <line x1="20" y1="21" x2="20" y2="16"></line>
+                                <line x1="20" y1="12" x2="20" y2="3"></line>
+                                <line x1="1" y1="14" x2="7" y2="14"></line>
+                                <line x1="9" y1="8" x2="15" y2="8"></line>
+                                <line x1="17" y1="16" x2="23" y2="16"></line>
+                            </svg>
+                        </span>
+                        <span class="label">Viva settings</span>
+                    </button>
+                    <a class="view-btn mobile-icon-btn" href="#" data-access-modal-open aria-label="Manage Access" title="Manage Access">
                         <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 3v12"></path>
-                            <path d="M16 7l-4-4-4 4"></path>
-                            <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                         </svg>
                     </a>
                     {% if can_switch_to_student %}
-                        <a class="view-btn" href="{% url 'standalone_student_entry' assignment.slug %}">Student view</a>
+                        <a class="view-btn mobile-icon-btn" href="{% url 'standalone_student_entry' assignment.slug %}" aria-label="Student view" title="Student view">
+                            <span class="icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                    <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </span>
+                            <span class="label">Student view</span>
+                        </a>
                     {% else %}
-                        <a class="view-btn" href="{% url 'standalone_view_as_student' assignment.slug %}">View as student</a>
+                        <a class="view-btn mobile-icon-btn" href="{% url 'standalone_view_as_student' assignment.slug %}" aria-label="View as student" title="View as student">
+                            <span class="icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                    <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </span>
+                            <span class="label">View as student</span>
+                        </a>
                     {% endif %}
+                    <button class="view-btn mobile-icon-btn" type="button" data-export-csv aria-label="Export filtered roster CSV" title="Export CSV">
+                        <span class="icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                        </span>
+                        <span class="label">Export CSV</span>
+                    </button>
                 {% endif %}
             </div>
             <div class="table-controls-right" data-dashboard-controls>
                 <input type="search" class="filter-input" placeholder="Filter students by name..." aria-label="Filter students" data-student-filter>
-                {% if from_standalone %}
-                    <button class="view-btn ghost" type="button" data-export-csv aria-label="Export filtered roster CSV">Export CSV</button>
-                {% endif %}
             </div>
         </div>
         <div class="dash-view active" data-view-pane="dashboard">
@@ -103,7 +170,7 @@
                                      data-student-search="{{ student.name|lower }} {{ student.email|default:''|lower }}"
                                      data-viva-status="{{ student.status|default:'pending' }}"
                                      data-has-flags="{% if student.flags %}true{% else %}false{% endif %}">
-                                    <div class="viva-cell" data-label="Student">
+                                    <div class="viva-cell student-cell" data-label="Student">
                                         {% if student.is_invite %}
                                             <span class="monospace">{{ student.name }}</span>
                                             {% if student.invite_status != "Accepted" %}
@@ -143,8 +210,8 @@
                                                     {% endfor %}
                                                 </ul>
                                             </details>
-                                        {% else %}
-                                            None
+                                        {% elif student.status == "completed" or student.status == "in_progress" %}
+                                            No flags
                                         {% endif %}
                                     </div>
                                 </div>
@@ -166,24 +233,19 @@
                             <div class="transcript-head">
                                 <div>
                                     <div class="name-row">
-                                        <span>Student:</span>
                                         <select class="transcript-select" data-transcript-select>
                                             <option value="" selected disabled>Select a student</option>
                                         </select>
                                     </div>
                                     <div class="name-row">
-                                        <span>Attempt:</span>
                                         <select class="transcript-select" data-attempt-select>
                                             <option value="" selected disabled>Select attempt</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="transcript-head-actions">
-                                    <button class="icon-btn" data-transcript-back title="Back to roster">← Back to roster</button>
-                                </div>
+                                <div class="transcript-head-actions"></div>
                             </div>
                             <div class="transcript-meta">
-                                <span class="transcript-assignment">Assignment: {{ assignment.title }}</span>
                                 <span class="transcript-duration" data-transcript-duration>Duration: —</span>
                             </div>
                             <div class="transcript-chat" data-transcript-chat>

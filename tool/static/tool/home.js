@@ -613,6 +613,12 @@ document.addEventListener("DOMContentLoaded", () => {
         navToggle.addEventListener("click", () => {
             navLinks.classList.toggle("open");
         });
+        navLinks.addEventListener("click", (event) => {
+            const link = event.target.closest("a");
+            if (link) {
+                navLinks.classList.remove("open");
+            }
+        });
     }
 
     // Walkthrough modal

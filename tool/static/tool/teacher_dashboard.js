@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const resourceUploadHint = document.querySelector("[data-resource-upload-hint]");
     const resourceUploadUrl = resourceUploadForm?.dataset.uploadUrl;
     const resourceEmpty = document.querySelector("[data-resource-empty]");
-    const backBtn = document.querySelector("[data-transcript-back]");
+    const backButtons = document.querySelectorAll("[data-transcript-back]");
     const backToTop = document.querySelector("[data-back-to-top]");
     const copyButtons = document.querySelectorAll("[data-copy-target]");
     const accessModal = document.querySelector("[data-access-modal]");
@@ -126,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
             flagsFilterBtn.setAttribute("aria-pressed", flagStates[flagStateIndex] !== "all");
         }
     };
+
 
     viewButtons.forEach(btn => {
         btn.addEventListener("click", () => showPane(btn.dataset.viewSwitch));
@@ -810,12 +811,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    if (backBtn) {
-        backBtn.addEventListener("click", () => {
+    backButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
             if (transcriptPane) transcriptPane.classList.remove("active");
             if (tablePane) tablePane.classList.add("active");
         });
-    }
+    });
 
     if (previewModal) {
         previewModal.addEventListener("click", (e) => {

@@ -36,6 +36,7 @@
         window.addEventListener('load', finishPreload);
     </script>
     <script defer src="{% static 'tool/student_dashboard.js' %}?v={{ cachebust }}"></script>
+    <script defer src="{% static 'tool/nav.js' %}?v={{ cachebust }}"></script>
 </head>
 <body>
 <div class="page page-with-footer"
@@ -57,7 +58,7 @@
      data-allow-student-report="{% if assignment.allow_student_report %}true{% else %}false{% endif %}"
      data-deadline-passed="{% if deadline_passed %}true{% else %}false{% endif %}">
 
-    <header class="nav nav-spread">
+    <header class="nav nav-spread nav-with-menu">
         {% if standalone_student %}
             <a class="brand" href="{% url 'landing_home' %}" aria-label="MachinaViva home">
                 <span class="brand-mark">MV</span>
@@ -69,7 +70,8 @@
                 <span>MachinaViva</span>
             </div>
         {% endif %}
-        <div class="nav-actions">
+        <button class="nav-toggle" data-nav-toggle aria-label="Toggle navigation">Menu</button>
+        <div class="nav-actions" data-nav-links>
             {% if view_as_student %}
                 <a class="view-btn" href="{% url 'standalone_exit_student_view' assignment.slug %}">Back to instructor</a>
             {% elif can_switch_to_instructor %}

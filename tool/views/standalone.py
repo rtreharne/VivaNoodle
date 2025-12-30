@@ -561,6 +561,7 @@ def standalone_app_home(request):
             assignment.self_enroll_iframe = ""
     return render(request, "tool/standalone_app_home.html", {
         "assignments": assignments,
+        "show_student_dashboard": _user_has_student_role(request.user),
     })
 
 
