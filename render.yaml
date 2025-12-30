@@ -1,12 +1,12 @@
 databases:
-  - name: vivanoodle-db
+  - name: machinaviva-db
     plan: basic-256mb
-    databaseName: vivanoodle
-    user: vivanoodle
+    databaseName: machinaviva
+    user: machinaviva
 
 services:
   - type: web
-    name: vivanoodle
+    name: machinaviva
     env: python
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
     startCommand: "gunicorn lti.wsgi:application"
@@ -21,14 +21,20 @@ services:
         value: "/var/data/media"
       - key: DATABASE_URL
         fromDatabase:
-          name: vivanoodle-db
+          name: machinaviva-db
           property: connectionString
       - key: OPENAI_API_KEY
         sync: false
       - key: EMAIL_BACKEND
         value: "django.core.mail.backends.smtp.EmailBackend"
       - key: DEFAULT_FROM_EMAIL
-        value: "no-reply@example.edu"
+        value: "MachinaViva <hello@machinaviva.co.uk>"
+      - key: EMAIL_HOST
+        value: "smtp-relay.brevo.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        value: "9a88b0001@smtp-brevo.com"
       - key: EMAIL_HOST
         sync: false
       - key: EMAIL_PORT
@@ -56,9 +62,9 @@ services:
       - key: LTI_REDIRECT_URI
         sync: false
       - key: ALLOWED_HOSTS
-        sync: false
+        value: "machinaviva.co.uk,.machinaviva.co.uk"
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: "https://machinaviva.co.uk,https://*.machinaviva.co.uk"
     disk:
       name: media
       mountPath: /var/data
