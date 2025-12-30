@@ -273,6 +273,20 @@ def assignment_view(request):
         request.session.pop("standalone_view_as_student_id", None)
         request.session.pop("standalone_view_as_student_assignment", None)
 
+    assignment_roles = set()
+    if request.user.is_authenticated and not request.session.get("lti_claims"):
+        assignment_roles = set(
+            AssignmentMembership.objects.filter(
+                assignment=assignment,
+                user=request.user,
+            ).values_list("role", flat=True)
+        )
+        if assignment.owner_id == request.user.id:
+            assignment_roles.add(AssignmentMembership.ROLE_INSTRUCTOR)
+    has_instructor_role = AssignmentMembership.ROLE_INSTRUCTOR in assignment_roles
+    has_student_role = AssignmentMembership.ROLE_STUDENT in assignment_roles
+    can_switch_roles = has_instructor_role and has_student_role
+
     # --------------------------------------------------------------
     # Apply deep link custom settings on first creation
     # --------------------------------------------------------------
@@ -378,13 +392,23 @@ def assignment_view(request):
     # --------------------------------------------------------------
     # Instructor view
     # --------------------------------------------------------------
+    standalone_instructor = False
+    if request.user.is_authenticated and not request.session.get("lti_claims"):
+        if is_instructor_role(roles):
+            standalone_instructor = True
+        elif not roles:
+            standalone_instructor = (
+                getattr(assignment, "owner_id", None) == getattr(request.user, "id", None)
+                or AssignmentMembership.objects.filter(
+                    assignment=assignment,
+                    user=request.user,
+                    role=AssignmentMembership.ROLE_INSTRUCTOR,
+                ).exists()
+            )
+
     from_standalone = bool(
         request.session.get("standalone_from_dashboard")
-        or (
-            request.user.is_authenticated
-            and getattr(assignment, "owner_id", None) == getattr(request.user, "id", None)
-            and not request.session.get("lti_claims")
-        )
+        or standalone_instructor
     )
     if view_as_student:
         from_standalone = False
@@ -486,6 +510,7 @@ def assignment_view(request):
             invite_qs_pending = list(AssignmentInvitation.objects.filter(
                 assignment=assignment,
                 accepted_at__isnull=True,
+                role=AssignmentMembership.ROLE_STUDENT,
             ).order_by("-created_at"))
             for inv in invite_qs_pending:
                 pending_invites.append({
@@ -496,11 +521,13 @@ def assignment_view(request):
 
             invites = list(AssignmentInvitation.objects.filter(
                 assignment=assignment,
+                role=AssignmentMembership.ROLE_STUDENT,
             ).order_by("-created_at"))
 
             invite_qs_accepted = AssignmentInvitation.objects.filter(
                 assignment=assignment,
                 accepted_at__isnull=False,
+                role=AssignmentMembership.ROLE_STUDENT,
             ).select_related("redeemed_by")
             roster_user_ids = {str(m.get("user_id")) for m in roster}
             for inv in invite_qs_accepted:
@@ -737,7 +764,7 @@ def assignment_view(request):
 
         self_enroll_link = ""
         self_enroll_iframe = ""
-        if from_standalone and request.user.is_authenticated and assignment.owner_id == request.user.id:
+        if from_standalone and request.user.is_authenticated and standalone_instructor:
             if not assignment.self_enroll_token:
                 assignment.self_enroll_token = _generate_self_enroll_token()
                 assignment.save(update_fields=["self_enroll_token"])
@@ -760,6 +787,7 @@ def assignment_view(request):
             "assignment_resources": resource_payloads,
             "resources_total_size": resources_total_size,
             "from_standalone": from_standalone,
+            "can_switch_to_student": can_switch_roles,
             "pending_invites": pending_invites,
             "self_enroll_link": self_enroll_link,
             "self_enroll_iframe": self_enroll_iframe,
@@ -1023,6 +1051,7 @@ def assignment_view(request):
         "view_as_student": view_as_student,
         "view_as_student_name": view_as_student_name,
         "standalone_student": standalone_student,
+        "can_switch_to_instructor": can_switch_roles and not view_as_student,
         "latest_submission": latest,
         "past_submissions": student_submissions,
         "submission_payloads": submission_payloads,

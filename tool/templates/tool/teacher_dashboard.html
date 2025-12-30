@@ -61,7 +61,11 @@
                             <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
                         </svg>
                     </a>
-                    <a class="view-btn" href="{% url 'standalone_view_as_student' assignment.slug %}">View as student</a>
+                    {% if can_switch_to_student %}
+                        <a class="view-btn" href="{% url 'standalone_student_entry' assignment.slug %}">Student view</a>
+                    {% else %}
+                        <a class="view-btn" href="{% url 'standalone_view_as_student' assignment.slug %}">View as student</a>
+                    {% endif %}
                 {% endif %}
             </div>
             <div class="table-controls-right" data-dashboard-controls>

@@ -15,7 +15,7 @@ def is_student_role(roles):
 import os
 import time, jwt, requests
 from django.conf import settings
-from tool.models import ToolConfig, UserProfile
+from tool.models import ToolConfig, UserProfile, AssignmentMembership
 
 LTI_PRIVATE_KEY_PATH = os.getenv("LTI_PRIVATE_KEY_PATH", "lti_keys/private.pem")
 
@@ -100,10 +100,22 @@ def fetch_nrps_roster(nrps_url):
         return None
 
 
-def user_role_labels(user):
+def user_role_labels(user, assignment=None):
     """
-    Map a Django user/profile to LTI-like role labels used elsewhere.
+    Map a Django user/profile or assignment membership to LTI-like role labels.
     """
+    if assignment is not None:
+        roles = set(
+            AssignmentMembership.objects.filter(
+                assignment=assignment,
+                user=user,
+            ).values_list("role", flat=True)
+        )
+        if AssignmentMembership.ROLE_INSTRUCTOR in roles:
+            return ["Instructor"]
+        if AssignmentMembership.ROLE_STUDENT in roles:
+            return ["Learner"]
+
     try:
         profile = user.profile
     except Exception:
@@ -118,7 +130,7 @@ def set_standalone_session(request, user, assignment, force_instructor=False, ro
     Populate session keys expected by existing LTI views so standalone flows
     can reuse the same assignment/submission/viva handlers.
     """
-    roles = roles_override or user_role_labels(user)
+    roles = roles_override or user_role_labels(user, assignment=assignment)
     if force_instructor and "Instructor" not in roles:
         roles = ["Instructor"]
 

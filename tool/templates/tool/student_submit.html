@@ -72,6 +72,8 @@
         <div class="nav-actions">
             {% if view_as_student %}
                 <a class="view-btn" href="{% url 'standalone_exit_student_view' assignment.slug %}">Back to instructor</a>
+            {% elif can_switch_to_instructor %}
+                <a class="view-btn" href="{% url 'standalone_assignment_entry' assignment.slug %}">Back to instructor</a>
             {% elif request.user.is_authenticated %}
                 <a class="view-btn" href="{% url 'standalone_student_assignments' %}">My assignments</a>
             {% endif %}

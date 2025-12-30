@@ -263,7 +263,7 @@ class AssignmentMembership(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("assignment", "user")
+        unique_together = ("assignment", "user", "role")
 
     def __str__(self):
         return f"{self.assignment.title} → {self.user} ({self.get_role_display()})"

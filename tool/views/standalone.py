@@ -186,7 +186,62 @@ def _ensure_profile(user, role):
     profile, created = UserProfile.objects.get_or_create(
         user=user, defaults={"role": role}
     )
+    if not created and role == UserProfile.ROLE_INSTRUCTOR and profile.role != role:
+        profile.role = role
+        profile.save(update_fields=["role"])
     return profile
+
+
+def _user_has_instructor_role(user):
+    if not user:
+        return False
+    try:
+        profile = user.profile
+    except Exception:
+        profile = None
+    if profile and profile.role == UserProfile.ROLE_INSTRUCTOR:
+        return True
+    return AssignmentMembership.objects.filter(
+        user=user,
+        role=AssignmentMembership.ROLE_INSTRUCTOR,
+    ).exists()
+
+
+def _user_has_student_role(user):
+    if not user:
+        return False
+    try:
+        profile = user.profile
+    except Exception:
+        profile = None
+    if profile and profile.role == UserProfile.ROLE_STUDENT:
+        return True
+    return AssignmentMembership.objects.filter(
+        user=user,
+        role=AssignmentMembership.ROLE_STUDENT,
+    ).exists()
+
+
+def _is_assignment_instructor(user, assignment):
+    if not user or not assignment:
+        return False
+    if assignment.owner_id == user.id:
+        return True
+    return AssignmentMembership.objects.filter(
+        assignment=assignment,
+        user=user,
+        role=AssignmentMembership.ROLE_INSTRUCTOR,
+    ).exists()
+
+
+def _is_assignment_student(user, assignment):
+    if not user or not assignment:
+        return False
+    return AssignmentMembership.objects.filter(
+        assignment=assignment,
+        user=user,
+        role=AssignmentMembership.ROLE_STUDENT,
+    ).exists()
 
 
 def _get_or_create_test_student(assignment):
@@ -256,9 +311,13 @@ def _get_instructor_user_by_email(email: str):
     return (
         User.objects.filter(
             Q(email__iexact=email) | Q(username__iexact=email),
-            profile__role=UserProfile.ROLE_INSTRUCTOR,
+        )
+        .filter(
+            Q(profile__role=UserProfile.ROLE_INSTRUCTOR)
+            | Q(assignment_memberships__role=AssignmentMembership.ROLE_INSTRUCTOR)
         )
         .select_related("profile")
+        .distinct()
         .first()
     )
 
@@ -269,9 +328,13 @@ def _get_student_user_by_email(email: str):
     return (
         User.objects.filter(
             Q(email__iexact=email) | Q(username__iexact=email),
-            profile__role=UserProfile.ROLE_STUDENT,
+        )
+        .filter(
+            Q(profile__role=UserProfile.ROLE_STUDENT)
+            | Q(assignment_memberships__role=AssignmentMembership.ROLE_STUDENT)
         )
         .select_related("profile")
+        .distinct()
         .first()
     )
 
@@ -289,11 +352,9 @@ def standalone_signup(request):
     Instructor-only signup.
     """
     if request.user.is_authenticated:
-        try:
-            if request.user.profile.role == UserProfile.ROLE_INSTRUCTOR:
-                return redirect("standalone_app_home")
-        except Exception:
-            pass
+        if _user_has_instructor_role(request.user):
+            return redirect("standalone_app_home")
+        return redirect("standalone_student_assignments")
 
     error = None
     if request.method == "POST":
@@ -367,13 +428,9 @@ def standalone_login(request):
     next_url = request.GET.get("next") or request.POST.get("next") or ""
 
     if request.user.is_authenticated:
-        try:
-            profile = request.user.profile
-            if profile.role == UserProfile.ROLE_INSTRUCTOR:
-                return redirect("standalone_app_home")
-            return redirect("standalone_student_assignments")
-        except Exception:
-            pass
+        if _user_has_instructor_role(request.user):
+            return redirect("standalone_app_home")
+        return redirect("standalone_student_assignments")
 
     if request.method == "POST":
         email = (request.POST.get("email") or "").strip().lower()
@@ -388,11 +445,7 @@ def standalone_login(request):
             error = "Invalid email or password."
         else:
             login(request, user)
-            try:
-                profile = user.profile
-            except Exception:
-                profile = None
-            if profile and profile.role == UserProfile.ROLE_INSTRUCTOR:
+            if _user_has_instructor_role(user):
                 return redirect(next_url or "standalone_app_home")
             return redirect(next_url or "standalone_student_assignments")
 
@@ -416,13 +469,9 @@ def standalone_privacy(request):
 
 def standalone_password_reset(request):
     if request.user.is_authenticated:
-        try:
-            profile = request.user.profile
-            if profile.role == UserProfile.ROLE_INSTRUCTOR:
-                return redirect("standalone_app_home")
-            return redirect("standalone_student_assignments")
-        except Exception:
-            return redirect("standalone_login")
+        if _user_has_instructor_role(request.user):
+            return redirect("standalone_app_home")
+        return redirect("standalone_student_assignments")
 
     error = None
     sent = False
@@ -451,16 +500,9 @@ def standalone_password_reset(request):
 
 def standalone_password_reset_confirm(request, uidb64, token):
     user = _get_user_from_uid(uidb64)
-    profile = None
-    if user is not None:
-        try:
-            profile = user.profile
-        except Exception:
-            profile = None
     valid_user = (
         user is not None
-        and profile is not None
-        and profile.role == UserProfile.ROLE_INSTRUCTOR
+        and _user_has_instructor_role(user)
         and default_token_generator.check_token(user, token)
     )
 
@@ -492,15 +534,17 @@ def standalone_logout(request):
 
 @login_required
 def standalone_app_home(request):
-    try:
-        profile = request.user.profile
-    except Exception:
-        return redirect("standalone_login")
-    if profile.role != UserProfile.ROLE_INSTRUCTOR:
-        return redirect("standalone_student_assignments")
-
-    assignments = Assignment.objects.filter(owner=request.user).order_by("-id")
+    assignments = Assignment.objects.filter(
+        Q(owner=request.user)
+        | Q(memberships__user=request.user, memberships__role=AssignmentMembership.ROLE_INSTRUCTOR)
+    ).distinct().order_by("-id")
     for assignment in assignments:
+        AssignmentMembership.objects.get_or_create(
+            assignment=assignment,
+            user=request.user,
+            role=AssignmentMembership.ROLE_INSTRUCTOR,
+            defaults={"role": AssignmentMembership.ROLE_INSTRUCTOR},
+        )
         if not assignment.self_enroll_token:
             assignment.self_enroll_token = _generate_self_enroll_token()
             assignment.save(update_fields=["self_enroll_token"])
@@ -522,13 +566,6 @@ def standalone_app_home(request):
 
 @login_required
 def standalone_assignment_create(request):
-    try:
-        profile = request.user.profile
-    except Exception:
-        return redirect("standalone_login")
-    if profile.role != UserProfile.ROLE_INSTRUCTOR:
-        return redirect("standalone_student_assignments")
-
     if request.method != "POST":
         return redirect("standalone_app_home")
 
@@ -536,6 +573,7 @@ def standalone_assignment_create(request):
     description = (request.POST.get("description") or "").strip()
     slug = _generate_slug(title)
 
+    _ensure_profile(request.user, UserProfile.ROLE_INSTRUCTOR)
     assignment = Assignment.objects.create(
         title=title or "Untitled assignment",
         description=description,
@@ -545,6 +583,7 @@ def standalone_assignment_create(request):
     AssignmentMembership.objects.get_or_create(
         assignment=assignment,
         user=request.user,
+        role=AssignmentMembership.ROLE_INSTRUCTOR,
         defaults={"role": AssignmentMembership.ROLE_INSTRUCTOR},
     )
 
@@ -554,10 +593,13 @@ def standalone_assignment_create(request):
 
 @login_required
 def standalone_assignment_entry(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
+        return redirect("standalone_student_assignments")
     AssignmentMembership.objects.get_or_create(
         assignment=assignment,
         user=request.user,
+        role=AssignmentMembership.ROLE_INSTRUCTOR,
         defaults={"role": AssignmentMembership.ROLE_INSTRUCTOR},
     )
     set_standalone_session(request, request.user, assignment, force_instructor=True)
@@ -567,18 +609,15 @@ def standalone_assignment_entry(request, slug):
 
 @login_required
 def standalone_view_as_student(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
-    try:
-        profile = request.user.profile
-    except Exception:
-        return redirect("standalone_login")
-    if profile.role != UserProfile.ROLE_INSTRUCTOR:
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
         return redirect("standalone_student_assignments")
 
     test_user = _get_or_create_test_student(assignment)
     AssignmentMembership.objects.get_or_create(
         assignment=assignment,
         user=test_user,
+        role=AssignmentMembership.ROLE_STUDENT,
         defaults={"role": AssignmentMembership.ROLE_STUDENT, "invited_by": request.user},
     )
 
@@ -594,12 +633,8 @@ def standalone_view_as_student(request, slug):
 
 @login_required
 def standalone_exit_student_view(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
-    try:
-        profile = request.user.profile
-    except Exception:
-        return redirect("standalone_login")
-    if profile.role != UserProfile.ROLE_INSTRUCTOR:
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
         return redirect("standalone_student_assignments")
 
     request.session.pop("standalone_view_as_student", None)
@@ -614,12 +649,8 @@ def standalone_exit_student_view(request, slug):
 
 @login_required
 def standalone_self_enroll_manage(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
-    try:
-        profile = request.user.profile
-    except Exception:
-        return redirect("standalone_login")
-    if profile.role != UserProfile.ROLE_INSTRUCTOR:
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
         return redirect("standalone_student_assignments")
     if request.method != "POST":
         return redirect("assignment_view")
@@ -644,21 +675,17 @@ def standalone_self_enroll(request, token):
 
     if request.user.is_authenticated:
         logged_in_user = request.user.email or request.user.username or ""
-        try:
-            profile = request.user.profile
-        except Exception:
-            profile = None
-        if profile and profile.role == UserProfile.ROLE_INSTRUCTOR:
-            error = "This link is for students. Please log in with a student account."
-        elif allowed_domain and not _domain_allowed(logged_in_user, allowed_domain):
+        if allowed_domain and not _domain_allowed(logged_in_user, allowed_domain):
             error = f"Email must end with @{allowed_domain} to join this assignment."
         else:
             _ensure_profile(request.user, UserProfile.ROLE_STUDENT)
             AssignmentMembership.objects.get_or_create(
                 assignment=assignment,
                 user=request.user,
+                role=AssignmentMembership.ROLE_STUDENT,
                 defaults={"role": AssignmentMembership.ROLE_STUDENT},
             )
+            request.session["standalone_from_dashboard"] = False
             set_standalone_session(request, request.user, assignment, force_instructor=False)
             return redirect("assignment_view")
 
@@ -703,15 +730,7 @@ def standalone_self_enroll(request, token):
             if not user:
                 error = "Invalid email or password."
             else:
-                try:
-                    profile = user.profile
-                except Exception:
-                    profile = None
-                if profile and profile.role == UserProfile.ROLE_INSTRUCTOR:
-                    error = "This link is for students. Please log in with a student account."
-                    user = None
-                else:
-                    _ensure_profile(user, UserProfile.ROLE_STUDENT)
+                _ensure_profile(user, UserProfile.ROLE_STUDENT)
         else:
             error = "Choose login or register."
 
@@ -720,8 +739,10 @@ def standalone_self_enroll(request, token):
             AssignmentMembership.objects.get_or_create(
                 assignment=assignment,
                 user=user,
+                role=AssignmentMembership.ROLE_STUDENT,
                 defaults={"role": AssignmentMembership.ROLE_STUDENT},
             )
+            request.session["standalone_from_dashboard"] = False
             set_standalone_session(request, user, assignment, force_instructor=False)
             return redirect("assignment_view")
 
@@ -785,9 +806,8 @@ def standalone_self_enroll_password_reset_confirm(request, token, uidb64, reset_
     domain_ok = _domain_allowed(email_to_check, allowed_domain) if allowed_domain else True
     valid_user = (
         user is not None
-        and profile is not None
-        and profile.role == UserProfile.ROLE_STUDENT
         and domain_ok
+        and ((profile is not None and profile.role == UserProfile.ROLE_STUDENT) or _user_has_student_role(user))
         and default_token_generator.check_token(user, reset_token)
     )
 
@@ -816,7 +836,9 @@ def standalone_self_enroll_password_reset_confirm(request, token, uidb64, reset_
 
 @login_required
 def standalone_invites(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
+        return redirect("standalone_student_assignments")
     error = success = None
 
     if request.method == "POST":
@@ -825,17 +847,19 @@ def standalone_invites(request, slug):
         if not email:
             error = "Email is required."
         else:
+            invite_role = role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT
             token = secrets.token_urlsafe(32)
             expires_at = now() + timedelta(days=INVITE_EXPIRY_DAYS)
             invite, created = AssignmentInvitation.objects.update_or_create(
                 assignment=assignment,
                 email=email,
+                role=invite_role,
                 accepted_at__isnull=True,
                 defaults={
                     "token": token,
                     "expires_at": expires_at,
                     "invited_by": request.user,
-                    "role": role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT,
+                    "role": invite_role,
                     "last_sent_at": now(),
                 }
             )
@@ -843,7 +867,7 @@ def standalone_invites(request, slug):
                 invite.token = token
                 invite.expires_at = expires_at
                 invite.invited_by = request.user
-                invite.role = role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT
+                invite.role = invite_role
                 invite.last_sent_at = now()
                 invite.save(update_fields=["token", "expires_at", "invited_by", "last_sent_at", "role"])
             _send_invite_email(request, invite)
@@ -860,7 +884,9 @@ def standalone_invites(request, slug):
 
 @login_required
 def standalone_invite_resend(request, invite_id):
-    invite = get_object_or_404(AssignmentInvitation, id=invite_id, assignment__owner=request.user)
+    invite = get_object_or_404(AssignmentInvitation, id=invite_id)
+    if not _is_assignment_instructor(request.user, invite.assignment):
+        return redirect("standalone_student_assignments")
     if invite.accepted_at:
         return redirect("standalone_invites", slug=invite.assignment.slug)
     invite.token = secrets.token_urlsafe(32)
@@ -939,8 +965,10 @@ def accept_invite(request, token):
             AssignmentMembership.objects.get_or_create(
                 assignment=assignment,
                 user=user,
+                role=invite.role or AssignmentMembership.ROLE_STUDENT,
                 defaults={"role": invite.role or AssignmentMembership.ROLE_STUDENT, "invited_by": invite.invited_by},
             )
+            request.session["standalone_from_dashboard"] = invite.role == AssignmentMembership.ROLE_INSTRUCTOR
             roles_override = ["Instructor"] if (invite.role == AssignmentMembership.ROLE_INSTRUCTOR) else ["Learner"]
             set_standalone_session(request, user, assignment, force_instructor=False, roles_override=roles_override)
             return redirect("assignment_view")
@@ -956,24 +984,28 @@ def accept_invite(request, token):
 
 @login_required
 def standalone_invite_create(request, slug):
-    assignment = get_object_or_404(Assignment, slug=slug, owner=request.user)
+    assignment = get_object_or_404(Assignment, slug=slug)
+    if not _is_assignment_instructor(request.user, assignment):
+        return redirect("standalone_student_assignments")
     if request.method != "POST":
         return redirect("assignment_view")
 
     email = (request.POST.get("email") or "").strip().lower()
     role = (request.POST.get("role") or AssignmentMembership.ROLE_STUDENT).strip()
     if email:
+        invite_role = role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT
         token = secrets.token_urlsafe(32)
         expires_at = now() + timedelta(days=INVITE_EXPIRY_DAYS)
         invite, created = AssignmentInvitation.objects.update_or_create(
             assignment=assignment,
             email=email,
+            role=invite_role,
             accepted_at__isnull=True,
             defaults={
                 "token": token,
                 "expires_at": expires_at,
                 "invited_by": request.user,
-                "role": role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT,
+                "role": invite_role,
                 "last_sent_at": now(),
             }
         )
@@ -981,7 +1013,7 @@ def standalone_invite_create(request, slug):
             invite.token = token
             invite.expires_at = expires_at
             invite.invited_by = request.user
-            invite.role = role if role in dict(AssignmentMembership.ROLE_CHOICES) else AssignmentMembership.ROLE_STUDENT
+            invite.role = invite_role
             invite.last_sent_at = now()
             invite.save(update_fields=["token", "expires_at", "invited_by", "last_sent_at", "role"])
         _send_invite_email(request, invite)
@@ -1063,11 +1095,16 @@ def standalone_invite_accept_logged_in(request, token):
     invite.redeemed_by = request.user
     invite.save(update_fields=["accepted_at", "redeemed_by"])
 
+    profile_role = UserProfile.ROLE_INSTRUCTOR if invite.role == AssignmentMembership.ROLE_INSTRUCTOR else UserProfile.ROLE_STUDENT
+    _ensure_profile(request.user, profile_role)
+
     AssignmentMembership.objects.get_or_create(
         assignment=invite.assignment,
         user=request.user,
+        role=invite.role or AssignmentMembership.ROLE_STUDENT,
         defaults={"role": invite.role or AssignmentMembership.ROLE_STUDENT, "invited_by": invite.invited_by},
     )
+    request.session["standalone_from_dashboard"] = invite.role == AssignmentMembership.ROLE_INSTRUCTOR
     roles_override = ["Instructor"] if (invite.role == AssignmentMembership.ROLE_INSTRUCTOR) else ["Learner"]
     set_standalone_session(request, request.user, invite.assignment, force_instructor=False, roles_override=roles_override)
     return redirect("assignment_view")
@@ -1079,8 +1116,9 @@ def standalone_student_entry(request, slug):
     membership = AssignmentMembership.objects.filter(
         assignment=assignment,
         user=request.user,
+        role=AssignmentMembership.ROLE_STUDENT,
     ).first()
-    if not membership or membership.role != AssignmentMembership.ROLE_STUDENT:
+    if not membership:
         return redirect("standalone_student_assignments")
 
     set_standalone_session(
@@ -1090,6 +1128,7 @@ def standalone_student_entry(request, slug):
         force_instructor=False,
         roles_override=["Learner"],
     )
+    request.session["standalone_from_dashboard"] = False
     return redirect("assignment_view")
 
 
