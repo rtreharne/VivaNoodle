@@ -267,9 +267,16 @@
                                          data-file-size="{{ sub.file_size|default:0 }}"
                                          data-start-url="{% url 'viva_start' sub.id %}">
                                         <div class="submission-cell file-name">
-                                            {{ sub.file_name|cut:"submissions/"|cut:"submission/"|default:"uploaded file"|truncatechars:40 }}
+                                            <span class="file-name-text">
+                                                {{ sub.file_name|cut:"submissions/"|cut:"submission/"|default:"uploaded file"|truncatechars:40 }}
+                                            </span>
+                                            <a class="link file-preview file-chip-name-link"
+                                               href="#"
+                                               data-preview-text="{{ sub.comment|default_if_none:''|escapejs }}">
+                                                {{ sub.file_name|cut:"submissions/"|cut:"submission/"|default:"uploaded file"|truncatechars:40 }}
+                                            </a>
                                             <div class="meta">
-                                                <a class="link file-preview"
+                                                <a class="link file-preview preview-text-link"
                                                    href="#"
                                                    data-preview-text="{{ sub.comment|default_if_none:''|escapejs }}">
                                                     Preview text

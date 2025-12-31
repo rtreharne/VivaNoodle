@@ -73,6 +73,10 @@ document.addEventListener("DOMContentLoaded", () => {
             dashboardControls.classList.toggle("is-hidden", target !== "dashboard");
         }
     };
+    const setDashboardControlsVisible = (visible) => {
+        if (!dashboardControls) return;
+        dashboardControls.classList.toggle("is-hidden", !visible);
+    };
 
     const getRowEls = () => Array.from(document.querySelectorAll("[data-student-row]"));
     const getRowHaystack = (row) => {
@@ -806,6 +810,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 showPane("dashboard");
                 if (tablePane) tablePane.classList.remove("active");
                 if (transcriptPane) transcriptPane.classList.add("active");
+                setDashboardControlsVisible(false);
                 scrollTranscriptTop();
             });
         });
@@ -815,6 +820,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.addEventListener("click", () => {
             if (transcriptPane) transcriptPane.classList.remove("active");
             if (tablePane) tablePane.classList.add("active");
+            setDashboardControlsVisible(true);
         });
     });
 
@@ -839,6 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 renderTranscript(student, firstSession);
                 if (tablePane) tablePane.classList.remove("active");
                 if (transcriptPane) transcriptPane.classList.add("active");
+                setDashboardControlsVisible(false);
                 scrollTranscriptTop();
             }
         });
@@ -848,6 +855,7 @@ document.addEventListener("DOMContentLoaded", () => {
         attemptSelect.addEventListener("change", (e) => {
             if (!activeStudent) return;
             renderTranscript(activeStudent, e.target.value);
+            setDashboardControlsVisible(false);
         });
     }
 

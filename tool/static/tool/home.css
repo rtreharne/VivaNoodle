@@ -3311,18 +3311,18 @@ a.link {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 .upload-inline input[type="file"] {
-    flex: 1 1 260px;
-    min-width: 220px;
-    width: auto;
-    max-width: 100%;
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
 }
 
 .upload-inline button {
-    flex: 0 0 auto;
+    flex: 1 0 auto;
+    min-height: 44px;
 }
 
 .upload-hint {
@@ -3340,6 +3340,9 @@ a.link {
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 [data-theme="light"] .file-chip {
@@ -3350,6 +3353,15 @@ a.link {
 .file-chip-name {
     font-weight: 700;
     margin-right: 10px;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-chip-name-link {
+    display: none;
 }
 
 .viva-files {
@@ -3667,5 +3679,81 @@ a.link {
     }
     .table-note {
         margin: 10px 0 0;
+    }
+    .viva-input {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .viva-input .input-shell {
+        width: 100%;
+    }
+    .viva-input .viva-send-btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+    }
+    .file-chip-name {
+        max-width: 100%;
+    }
+    .viva-files .file-chip-name {
+        display: none;
+    }
+    .viva-files {
+        min-width: 0;
+    }
+    .viva-files .file-chip {
+        width: 100%;
+        min-width: 0;
+    }
+    .viva-files .file-chip-name-link {
+        display: block;
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .viva-files .file-preview:not(.file-chip-name-link) {
+        display: none;
+    }
+    .submission-cell.file-name .file-name-text,
+    .submission-cell.file-name .preview-text-link {
+        display: none;
+    }
+    .submission-cell.file-name .file-chip-name-link {
+        display: inline-block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+    }
+}
+
+@media (max-width: 460px) {
+    .submission-table-header {
+        display: none;
+    }
+    .submission-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .submission-cell {
+        width: 100%;
+    }
+    .submission-cell.file-name {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+    .submission-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .viva-files .file-chip {
+        display: block;
+        max-width: 100%;
     }
 }

@@ -442,13 +442,43 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        const truncateFileName = (filename, maxLength = 25) => {
+            const name = filename || "";
+            if (name.length <= maxLength) return name;
+            const lastDot = name.lastIndexOf(".");
+            const hasExt = lastDot > 0 && lastDot < name.length - 1;
+            const ext = hasExt ? name.slice(lastDot) : "";
+            const base = hasExt ? name.slice(0, lastDot) : name;
+            const maxBase = Math.max(0, maxLength - ext.length - 3);
+            if (maxBase <= 0) return `...${ext}`;
+            return `${base.slice(0, maxBase)}...${ext}`;
+        };
+
         files.forEach((f) => {
             const chip = document.createElement("div");
             chip.className = "meta file-chip";
             const name = document.createElement("span");
             name.className = "file-chip-name";
-            name.textContent = (f.file_name || "").replace(/^(submissions|assignment_resources)\//, "");
+            const rawName = (f.file_name || "").replace(/^(submissions|assignment_resources)\//, "");
+            const truncatedName = truncateFileName(rawName);
+            name.textContent = truncatedName;
             chip.appendChild(name);
+
+            const nameLink = document.createElement("a");
+            nameLink.href = "#";
+            nameLink.className = "link file-preview file-chip-name-link";
+            nameLink.textContent = truncatedName;
+            nameLink.dataset.previewText = f.comment || "";
+            nameLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                if (modalContent && modal) {
+                    modalContent.textContent = (nameLink.dataset.previewText || "").replace(/\\u([\dA-Fa-f]{4})/g, (_, code) =>
+                        String.fromCharCode(parseInt(code, 16))
+                    );
+                    modal.classList.add("show");
+                }
+            });
+            chip.appendChild(nameLink);
 
             const preview = document.createElement("a");
             preview.href = "#";
