@@ -512,12 +512,14 @@ a.link {
     background: rgba(255, 255, 255, 0.24);
 }
 
-.thinking .dots {
+.thinking .dots,
+.mcq-status .dots {
     display: inline-flex;
     gap: 4px;
 }
 
-.thinking .dots span {
+.thinking .dots span,
+.mcq-status .dots span {
     width: 6px;
     height: 6px;
     border-radius: 50%;
@@ -525,10 +527,13 @@ a.link {
     animation: bounce 1s infinite ease-in-out;
 }
 
-.thinking .dots span:nth-child(2) { animation-delay: 0.15s; }
-.thinking .dots span:nth-child(3) { animation-delay: 0.3s; }
+.thinking .dots span:nth-child(2),
+.mcq-status .dots span:nth-child(2) { animation-delay: 0.15s; }
+.thinking .dots span:nth-child(3),
+.mcq-status .dots span:nth-child(3) { animation-delay: 0.3s; }
 
-[data-theme="light"] .thinking .dots span {
+[data-theme="light"] .thinking .dots span,
+[data-theme="light"] .mcq-status .dots span {
     background: #0f172a;
 }
 
@@ -3080,6 +3085,17 @@ a.link {
     gap: 12px;
 }
 
+@media (max-width: 640px) {
+    .mcq-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .mcq-head .meta,
+    .mcq-head .mcq-status {
+        width: 100%;
+    }
+}
+
 .mcq-title {
     margin: 0;
     font-size: 1rem;
@@ -3145,19 +3161,6 @@ a.link {
     content: "-";
 }
 
-.mcq-status.is-loading::after {
-    content: "...";
-    display: inline-block;
-    margin-left: 6px;
-    animation: mcqEllipsis 1.2s steps(4, end) infinite;
-    overflow: hidden;
-    vertical-align: bottom;
-}
-
-@keyframes mcqEllipsis {
-    0% { width: 0; }
-    100% { width: 12px; }
-}
 
 .mcq-results {
     display: flex;
@@ -3974,6 +3977,17 @@ a.link {
 }
 
 @media (max-width: 640px) {
+    .mcq-panel .mcq-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    .mcq-panel .mcq-head > div {
+        width: 100%;
+    }
+    .mcq-panel .mcq-status {
+        align-self: flex-start;
+    }
     .table-head {
         display: none;
     }

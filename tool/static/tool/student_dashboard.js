@@ -864,8 +864,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const setMcqStatus = (text, isLoading = false) => {
         if (!mcqStatusEl) return;
-        mcqStatusEl.textContent = text || "";
         mcqStatusEl.classList.toggle("is-loading", !!isLoading);
+        mcqStatusEl.innerHTML = "";
+        if (text) {
+            mcqStatusEl.append(document.createTextNode(text));
+        }
+        if (isLoading) {
+            const spacer = document.createTextNode(text ? " " : "");
+            const dots = document.createElement("span");
+            dots.className = "dots";
+            dots.innerHTML = "<span></span><span></span><span></span>";
+            mcqStatusEl.append(spacer);
+            mcqStatusEl.appendChild(dots);
+        }
     };
 
     const setMcqMode = (active) => {
@@ -940,6 +951,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!mcqEnabled || mcqCount <= 0) {
             mcqCompleted = true;
             setMcqMode(false);
+            if (vivaTimeRemaining <= 0) {
+                enterSubmitMode();
+            } else {
+                startVivaTimer();
+            }
             const history = historyOverride ?? (sessionHistories[String(sessionId)] || []);
             if (history.length || !hasChatContent()) {
                 renderChatForSession(sessionId, history);
@@ -947,16 +963,10 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         setMcqMode(true);
-        setMcqStatus(
-            mcqOnly
-                ? "This attempt is MCQ-only. It will submit automatically after the quiz."
-                : "Generating MCQs",
-            !mcqOnly
-        );
+        setMcqStatus("Generating MCQs", true);
         if (mcqNextBtn) mcqNextBtn.disabled = true;
         mcqPendingSessionId = sessionId;
         mcqPendingHistory = historyOverride || [];
-        if (!vivaTimerStarted) startVivaTimer();
         const data = await sendToServer({
             session_id: sessionId,
         }, "/viva/mcq/");
@@ -965,6 +975,11 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => {
                 setMcqMode(false);
                 mcqCompleted = true;
+                if (vivaTimeRemaining <= 0) {
+                    enterSubmitMode();
+                } else {
+                    startVivaTimer();
+                }
                 renderChatForSession(sessionId, historyOverride);
             }, 900);
             return;
@@ -976,14 +991,28 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => {
                 setMcqMode(false);
                 mcqCompleted = true;
+                if (vivaTimeRemaining <= 0) {
+                    enterSubmitMode();
+                } else {
+                    startVivaTimer();
+                }
                 renderChatForSession(sessionId, historyOverride);
             }, 900);
             return;
         }
+        if (vivaTimeRemaining <= 0) {
+            enterSubmitMode();
+        } else {
+            startVivaTimer();
+        }
         if (mcqCompleted) {
             if (mcqOnly) {
-                await endSession("");
+                const historySnapshot = captureChatHistory();
+                const result = await endSession("");
+                finalizeSessionCompletion(result?.sessionId, historySnapshot, result);
+                vivaSessionActive = false;
                 showSummary();
+                updateVivaControls();
             } else {
                 setMcqMode(false);
                 renderChatForSession(sessionId, historyOverride);
@@ -1338,6 +1367,37 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     };
 
+    function finalizeSessionCompletion(sessionId, historySnapshot, result = {}) {
+        if (!sessionId) return;
+        const key = String(sessionId);
+        if (historySnapshot) {
+            sessionHistories[key] = historySnapshot;
+        } else if (!sessionHistories[key]) {
+            sessionHistories[key] = [];
+        }
+        const aiText = result?.feedbackText || "";
+        const aiVisible = !!result?.feedbackVisible;
+        const mcqResults = result?.mcqResults || result?.mcq_results || null;
+        const hasFeedback = aiVisible && aiText;
+        const existing = sessionFeedback[key] || {};
+        if (hasFeedback || mcqResults || existing.ai_text || existing.teacher_text || existing.mcq_results) {
+            sessionFeedback[key] = {
+                ai_text: hasFeedback ? aiText : existing.ai_text || "",
+                teacher_text: existing.teacher_text || "",
+                teacher_author: existing.teacher_author || "",
+                mcq_results: mcqResults || existing.mcq_results || null,
+                mcq_only: mcqOnly,
+            };
+        }
+        const selectedFiles = buildSelectedFiles();
+        const selectedInstructorFiles = buildSelectedInstructorFiles();
+        sessionFiles[key] = selectedInstructorFiles.length
+            ? selectedFiles.concat(selectedInstructorFiles)
+            : selectedFiles;
+        appendAttemptRow(key);
+        applySessionFeedback(key);
+    }
+
     const requestAiReply = async (sessionId, text) => {
         if (!sessionId) return null;
         return await sendToServer({
@@ -1367,7 +1427,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 addVivaBubble("user", text);
             }
             const historySnapshot = captureChatHistory();
-            const expectAiFeedback = isAiFeedbackVisible();
+            const expectAiFeedback = !mcqOnly && isAiFeedbackVisible();
             let thinking = null;
             if (expectAiFeedback) {
                 clearVivaChat();
@@ -1378,32 +1438,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const aiText = result?.feedbackText || "";
             const aiVisible = !!result?.feedbackVisible;
             const mcqResults = result?.mcqResults || result?.mcq_results || null;
-            if (sessionId) {
-                sessionHistories[String(sessionId)] = historySnapshot;
-                const hasFeedback = aiVisible && aiText;
-                const existing = sessionFeedback[String(sessionId)] || {};
-                if (hasFeedback || mcqResults) {
-                    sessionFeedback[String(sessionId)] = {
-                        ai_text: hasFeedback ? aiText : existing.ai_text || "",
-                        teacher_text: existing.teacher_text || "",
-                        teacher_author: existing.teacher_author || "",
-                        mcq_results: mcqResults || existing.mcq_results || null,
-                    };
-                }
-                const selectedFiles = buildSelectedFiles();
-                const selectedInstructorFiles = buildSelectedInstructorFiles();
-                sessionFiles[String(sessionId)] = selectedInstructorFiles.length
-                    ? selectedFiles.concat(selectedInstructorFiles)
-                    : selectedFiles;
-                appendAttemptRow(String(sessionId));
-                applySessionFeedback(String(sessionId));
-            }
+            finalizeSessionCompletion(sessionId, historySnapshot, result);
             vivaInput.value = "";
             vivaSend.textContent = "Submitted";
             vivaSend.disabled = true;
             vivaSend.classList.remove("submit-mode");
             vivaSessionActive = false;
             setVivaInputDisabled(true);
+            if (mcqOnly) {
+                clearVivaChat();
+                updateFeedbackPanel("", "", "", mcqResults, mcqOnly);
+                addRatingBar();
+                updateVivaControls();
+                return;
+            }
             if (expectAiFeedback) {
                 setTimeout(() => {
                     thinking?.remove();
@@ -1552,11 +1600,6 @@ document.addEventListener("DOMContentLoaded", () => {
         clearVivaChat();
         vivaIntroStarted = true;
         navBar?.classList.add("viva-active");
-        if (vivaTimeRemaining <= 0) {
-            enterSubmitMode();
-        } else {
-            startVivaTimer();
-        }
         startHeartbeat();
         showChat(false);
         updateVivaControls();
@@ -1577,6 +1620,19 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!allowEarlySubmit || vivaExpired || viewingHistory) return;
             if (!vivaSessionActive) return;
             if (mcqActive) {
+                const current = mcqQuestions[mcqIndex];
+                const questionId = current?.id ?? current?.question_id;
+                if (questionId != null && mcqSelectedIndex != null && mcqPendingSessionId != null) {
+                    const response = await sendToServer({
+                        session_id: mcqPendingSessionId,
+                        question_id: questionId,
+                        selected_index: mcqSelectedIndex,
+                    }, "/viva/mcq/answer/");
+                    if (response?.status === "ok") {
+                        current.selected_index = mcqSelectedIndex;
+                        mcqSelectedIndex = null;
+                    }
+                }
                 setMcqMode(false);
                 enterSubmitMode();
                 await handleVivaSend();
@@ -1634,8 +1690,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (mcqOnly) {
                 setMcqStatus("MCQ complete. Submitting...", false);
                 setTimeout(async () => {
-                    await endSession("");
+                    const historySnapshot = captureChatHistory();
+                    const result = await endSession("");
+                    finalizeSessionCompletion(result?.sessionId, historySnapshot, result);
+                    vivaSessionActive = false;
                     showSummary();
+                    updateVivaControls();
                 }, 700);
             } else {
                 setMcqStatus("MCQ complete. Starting viva...", false);
@@ -1711,6 +1771,7 @@ document.addEventListener("DOMContentLoaded", () => {
             playVivaIntro();
         }
         renderSessionFiles(vivaSessionId || lastSessionId || initialSessionId, true);
+        updateVivaControls();
         if (scroll) chatCard.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 

@@ -937,6 +937,15 @@ def viva_send_message(request):
             session.duration_seconds = int((session.ended_at - session.started_at).total_seconds())
         update_fields.extend(["ended_at", "duration_seconds"])
         session.save(update_fields=update_fields)
+        if not session.mcq_completed:
+            mcq_questions = VivaSessionMcqQuestion.objects.filter(session=session)
+            if mcq_questions.exists():
+                total = mcq_questions.count()
+                score = sum(1 for q in mcq_questions if q.student_index == q.correct_index)
+                session.mcq_completed = True
+                session.mcq_score = score
+                session.mcq_total = total
+                session.save(update_fields=["mcq_completed", "mcq_score", "mcq_total"])
     elif update_fields:
         session.save(update_fields=update_fields)
 
