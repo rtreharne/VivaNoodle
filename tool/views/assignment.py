@@ -3,11 +3,11 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.urls import reverse
 from django.utils.text import slugify
 from .helpers import is_instructor_role, is_admin_role, fetch_nrps_roster
-from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaSessionSubmission, InteractionLog, AssignmentResource, AssignmentResourcePreference, VivaSessionResource, AssignmentInvitation, AssignmentMembership, AssignmentSettingsChange
+from ..models import Assignment, Submission, VivaMessage, VivaSession, VivaSessionSubmission, InteractionLog, AssignmentResource, AssignmentResourcePreference, VivaSessionResource, AssignmentInvitation, AssignmentMembership, AssignmentSettingsChange, VivaSessionMcqQuestion
 from datetime import datetime
 from django.utils import timezone
 from django.utils.timezone import now
-from .viva import compute_integrity_flags
+from .viva import compute_integrity_flags, build_mcq_results
 import json
 import secrets
 
@@ -49,6 +49,9 @@ TRACKED_ASSIGNMENT_FIELDS = [
     "enable_model_answers",
     "allow_student_resource_toggle",
     "allow_student_uploads",
+    "mcq_enabled",
+    "mcq_question_count",
+    "mcq_only",
 ]
 
 
@@ -84,6 +87,9 @@ SETTING_LABELS = {
     "enable_model_answers": "Enable model answers",
     "allow_student_resource_toggle": "Allow student resource toggle",
     "allow_student_uploads": "Allow student uploads",
+    "mcq_enabled": "Enable MCQ round",
+    "mcq_question_count": "MCQ question count",
+    "mcq_only": "MCQ only",
 }
 
 
@@ -197,6 +203,22 @@ def assignment_edit_save(request):
     assignment.enable_model_answers = (request.POST.get("enable_model_answers") == "on")
     assignment.allow_student_resource_toggle = (request.POST.get("allow_student_resource_toggle") == "on")
     assignment.allow_student_uploads = (request.POST.get("allow_student_uploads") == "on")
+    assignment.mcq_enabled = (request.POST.get("mcq_enabled") == "on")
+    mcq_question_count = request.POST.get("mcq_question_count")
+    try:
+        parsed_mcq_count = int(mcq_question_count)
+    except (TypeError, ValueError):
+        parsed_mcq_count = assignment.mcq_question_count
+    assignment.mcq_only = (request.POST.get("mcq_only") == "on")
+    if not assignment.mcq_enabled:
+        assignment.mcq_question_count = 0
+        assignment.mcq_only = False
+    else:
+        assignment.mcq_question_count = min(20, max(1, int(parsed_mcq_count or 1)))
+    if assignment.mcq_only:
+        assignment.mcq_enabled = True
+        if assignment.mcq_question_count <= 0:
+            assignment.mcq_question_count = 1
 
     assignment.save()
 
@@ -304,6 +326,25 @@ def student_attempt_download(request, session_id):
             lines.append(f"{sender}: {text}")
     else:
         lines.append("No transcript available.")
+
+    mcq_questions = VivaSessionMcqQuestion.objects.filter(session=session).order_by("order")
+    if mcq_questions.exists():
+        lines.append("")
+        lines.append("MCQ results:")
+        if session.mcq_total:
+            score = session.mcq_score if session.mcq_score is not None else 0
+            lines.append(f"Score: {score}/{session.mcq_total}")
+        labels = ["A", "B", "C", "D"]
+        for idx, q in enumerate(mcq_questions, start=1):
+            lines.append(f"Q{idx}: {q.question}")
+            options = q.options or []
+            for opt_idx, opt in enumerate(options):
+                label = labels[opt_idx] if opt_idx < len(labels) else str(opt_idx + 1)
+                lines.append(f"  {label}. {opt}")
+            student_label = labels[q.student_index] if q.student_index is not None and q.student_index < len(labels) else "No answer"
+            correct_label = labels[q.correct_index] if q.correct_index is not None and q.correct_index < len(labels) else "Unknown"
+            lines.append(f"  Student answer: {student_label}")
+            lines.append(f"  Correct answer: {correct_label}")
 
     if ai_visible and session.feedback_text:
         lines.append("")
@@ -466,6 +507,27 @@ def assignment_view(request):
                 custom.get("allow_student_resource_toggle"),
                 default=assignment.allow_student_resource_toggle
             )
+            assignment.mcq_enabled = as_bool(
+                custom.get("mcq_enabled"),
+                default=assignment.mcq_enabled
+            )
+            mcq_question_count = custom.get("mcq_question_count")
+            if mcq_question_count is not None:
+                try:
+                    assignment.mcq_question_count = min(20, max(1, int(mcq_question_count)))
+                except (TypeError, ValueError):
+                    pass
+            assignment.mcq_only = as_bool(
+                custom.get("mcq_only"),
+                default=assignment.mcq_only
+            )
+            if not assignment.mcq_enabled:
+                assignment.mcq_question_count = 0
+                assignment.mcq_only = False
+            if assignment.mcq_only:
+                assignment.mcq_enabled = True
+                if assignment.mcq_question_count <= 0:
+                    assignment.mcq_question_count = 1
 
             viva_instructions = custom.get("viva_instructions")
             if viva_instructions is not None:
@@ -754,8 +816,9 @@ def assignment_view(request):
                         "ai_text": sess.feedback_text or "",
                         "teacher_text": sess.teacher_feedback_text or "",
                         "teacher_author": teacher_author,
+                        "mcq_results": build_mcq_results(sess),
                     }
-                    if not (feedback["ai_text"] or feedback["teacher_text"]):
+                    if not (feedback["ai_text"] or feedback["teacher_text"] or feedback["mcq_results"]):
                         feedback = None
 
                     duration_seconds = sess.duration_seconds
@@ -776,6 +839,7 @@ def assignment_view(request):
                         "status": "completed" if sess.ended_at else "in_progress",
                         "files": files + resource_files,
                         "events": events,
+                        "mcq_only": assignment.mcq_only,
                     })
 
             viva_payload = viva_attempts[0] if viva_attempts else None
@@ -808,6 +872,7 @@ def assignment_view(request):
                 "knowledge_flag": knowledge_flag,
                 "viva": viva_payload,
                 "vivas": viva_attempts,
+                "mcq_results": build_mcq_results(session) if session else None,
             }
             student_entry["email"] = member.get("email") or member.get("email_address") or member.get("lis_person_contact_email_primary") or member.get("lis_person_contact_email")
             if from_standalone and uid in accepted_invite_user_ids:
@@ -1153,11 +1218,14 @@ def assignment_view(request):
         for s in sessions:
             ai_text = s.feedback_text if ai_feedback_visible else ""
             teacher_text = s.teacher_feedback_text or ""
-            if ai_text or teacher_text:
+            mcq_results = build_mcq_results(s)
+            if ai_text or teacher_text or mcq_results:
                 session_feedback[str(s.id)] = {
                     "ai_text": ai_text,
                     "teacher_text": teacher_text if teacher_feedback_visible else "",
                     "teacher_author": _format_feedback_author(s.teacher_feedback_author) if teacher_feedback_visible else "",
+                    "mcq_results": mcq_results,
+                    "mcq_only": assignment.mcq_only,
                 }
 
     user_email = ""
@@ -1209,4 +1277,7 @@ def assignment_view(request):
         "assignment_resources": resource_payloads,
         "submissions_total_size": submissions_total_size,
         "heartbeat_nonce": heartbeat_nonce,
+        "mcq_enabled": assignment.mcq_enabled,
+        "mcq_question_count": assignment.mcq_question_count,
+        "mcq_only": assignment.mcq_only,
     })

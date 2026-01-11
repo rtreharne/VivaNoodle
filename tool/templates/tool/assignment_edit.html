@@ -134,6 +134,29 @@
                     </label>
                     <div class="meta">Students must include at least one file.</div>
                 </div>
+                <div class="settings-row split" data-mcq-row>
+                    <div>
+                        <label>Enable MCQ round</label>
+                        <label class="switch">
+                            <input type="checkbox" name="mcq_enabled" data-mcq-toggle {% if assignment.mcq_enabled %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <div class="meta">Ask a short MCQ quiz before the viva chat.</div>
+                    </div>
+                    <div data-mcq-count-row>
+                        <label for="mcq_question_count">MCQ question count</label>
+                        <input type="number" id="mcq_question_count" name="mcq_question_count" data-mcq-count min="1" max="20" step="1" value="{{ assignment.mcq_question_count|default:1 }}">
+                        <div class="meta">One correct answer plus three distractors.</div>
+                    </div>
+                </div>
+                <div class="settings-row" data-mcq-row data-mcq-only-row>
+                    <label>MCQ only</label>
+                    <label class="switch">
+                        <input type="checkbox" name="mcq_only" data-mcq-only {% if assignment.mcq_only %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                    <div class="meta">Skip the viva chat and submit immediately after the quiz.</div>
+                </div>
             </div>
 
             <div class="settings-form-card">
@@ -222,6 +245,38 @@
             }
         };
         unlimited.addEventListener("change", toggle);
+        toggle();
+    })();
+    (() => {
+        const mcqToggle = document.querySelector("[data-mcq-toggle]");
+        const mcqCountInput = document.querySelector("[data-mcq-count]");
+        const mcqOnlyToggle = document.querySelector("[data-mcq-only]");
+        const mcqCountRow = document.querySelector("[data-mcq-count-row]");
+        const mcqOnlyRow = document.querySelector("[data-mcq-only-row]");
+        if (!mcqToggle) return;
+        const toggle = () => {
+            const enabled = !!mcqToggle.checked;
+            if (!enabled && mcqOnlyToggle) {
+                mcqOnlyToggle.checked = false;
+            }
+            if (enabled && mcqCountInput) {
+                const countVal = parseInt(mcqCountInput.value, 10);
+                if (!Number.isFinite(countVal) || countVal < 1) {
+                    mcqCountInput.value = "1";
+                }
+            }
+            if (mcqCountInput) mcqCountInput.disabled = !enabled;
+            if (mcqOnlyToggle) mcqOnlyToggle.disabled = !enabled;
+            if (mcqCountRow) {
+                mcqCountRow.classList.toggle("is-hidden", !enabled);
+                mcqCountRow.style.display = enabled ? "" : "none";
+            }
+            if (mcqOnlyRow) {
+                mcqOnlyRow.classList.toggle("is-hidden", !enabled);
+                mcqOnlyRow.style.display = enabled ? "" : "none";
+            }
+        };
+        mcqToggle.addEventListener("change", toggle);
         toggle();
     })();
 </script>

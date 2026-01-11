@@ -57,9 +57,12 @@
      data-instructor-toggle-enabled="{% if assignment.allow_student_resource_toggle %}true{% else %}false{% endif %}"
      data-allow-early-submit="{% if assignment.allow_early_submission %}true{% else %}false{% endif %}"
      data-allow-student-report="{% if assignment.allow_student_report %}true{% else %}false{% endif %}"
+     data-mcq-enabled="{% if mcq_enabled %}true{% else %}false{% endif %}"
+     data-mcq-count="{{ mcq_question_count|default:0 }}"
+     data-mcq-only="{% if mcq_only %}true{% else %}false{% endif %}"
      data-deadline-passed="{% if deadline_passed %}true{% else %}false{% endif %}">
 
-    <header class="nav nav-spread nav-with-menu">
+    <header class="nav nav-spread nav-with-menu nav-with-timer">
         {% if standalone_student %}
             <a class="brand" href="{% url 'landing_home' %}" aria-label="MachinaViva home">
                 <span class="brand-mark">MV</span>
@@ -80,10 +83,6 @@
             {% elif request.user.is_authenticated %}
                 <a class="view-btn" href="{% url 'standalone_student_assignments' %}">My assignments</a>
             {% endif %}
-            <span class="badge viva-nav-timer is-hidden"
-                  data-viva-timer
-                  data-viva-minutes="{{ duration_minutes|default:10 }}"
-                  data-viva-seconds="{{ remaining_seconds|default_if_none:0 }}">00:00</span>
             <button class="view-btn ghost" type="button" data-theme-toggle aria-label="Toggle theme">☾</button>
             {% if view_as_student and view_as_student_name %}
                 <span class="user-chip">Viewing as {{ view_as_student_name }}</span>
@@ -339,12 +338,30 @@
                 <div class="settings-card-head">
                     <h3 class="settings-title">Viva chat</h3>
                     <div class="viva-head-actions">
+                        <span class="badge viva-nav-timer is-hidden"
+                              data-viva-timer
+                              data-viva-minutes="{{ duration_minutes|default:10 }}"
+                              data-viva-seconds="{{ remaining_seconds|default_if_none:0 }}">00:00</span>
                         <button class="control-btn ghost is-hidden" type="button" data-early-submit>Submit early</button>
                         <button class="control-btn ghost is-hidden" type="button" data-toggle-model>Show model answers</button>
                         <button class="control-btn ghost" type="button" data-back-dashboard>Back</button>
                     </div>
                 </div>
                 <div class="viva-chat-card">
+                    <div class="mcq-panel is-hidden" data-mcq-panel>
+                        <div class="mcq-head">
+                            <div>
+                                <h4 class="mcq-title">MCQ warm-up</h4>
+                                <div class="meta" data-mcq-progress>Question 1 of 1</div>
+                            </div>
+                            <div class="meta mcq-status" data-mcq-status></div>
+                        </div>
+                        <div class="mcq-question" data-mcq-question></div>
+                        <div class="mcq-options" data-mcq-options></div>
+                        <div class="mcq-actions">
+                            <button class="control-btn" type="button" data-mcq-next>Next</button>
+                        </div>
+                    </div>
                     <div class="viva-history-layout" data-viva-history-layout>
                         <div class="viva-chat-wrap">
                             <div class="panel-chat viva-chat-window"
@@ -353,6 +370,14 @@
                         </div>
                         <aside class="viva-history-side is-hidden" data-viva-feedback-panel>
                             <div class="side-card">
+                                <details class="mcq-details" data-mcq-feedback-card>
+                                    <summary class="tiny">MCQ results</summary>
+                                    <div class="feedback-block" data-mcq-feedback>
+                                        Select an attempt to view MCQ results.
+                                    </div>
+                                </details>
+                            </div>
+                            <div class="side-card" data-ai-feedback-card>
                                 <p class="tiny">AI feedback</p>
                                 <div class="feedback-block" data-ai-feedback>
                                     {% if ai_feedback %}
@@ -443,6 +468,26 @@
                 </div>
                 <div class="settings-row split">
                     <div>
+                        <label>MCQ quiz</label>
+                        <div class="meta">{% if mcq_enabled %}Enabled{% else %}Disabled{% endif %}</div>
+                    </div>
+                    <div>
+                        <label>MCQ questions</label>
+                        <div class="meta">
+                            {% if mcq_enabled %}
+                                {{ mcq_question_count|default:0 }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>MCQ only</label>
+                    <div class="meta">{% if mcq_only %}Yes (auto-submit after quiz){% else %}No{% endif %}</div>
+                </div>
+                <div class="settings-row split">
+                    <div>
                         <label>Student report</label>
                         <div class="meta">{% if assignment.allow_student_report %}Enabled{% else %}Disabled{% endif %}</div>
                     </div>
@@ -450,6 +495,10 @@
                         <label>Instructor files toggle</label>
                         <div class="meta">{% if assignment.allow_student_resource_toggle %}Enabled{% else %}Disabled{% endif %}</div>
                     </div>
+                </div>
+                <div class="settings-row">
+                    <label>Student uploads</label>
+                    <div class="meta">{% if assignment.allow_student_uploads %}Enabled{% else %}Disabled{% endif %}</div>
                 </div>
                 <div class="settings-row">
                     <label>Tracking</label>

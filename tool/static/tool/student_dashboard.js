@@ -82,6 +82,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const instructorToggleEnabled = pageEl?.dataset.instructorToggleEnabled === "true";
     const allowEarlySubmit = pageEl?.dataset.allowEarlySubmit === "true";
     const allowStudentReport = pageEl?.dataset.allowStudentReport === "true";
+    const mcqEnabled = pageEl?.dataset.mcqEnabled === "true";
+    let mcqCount = parseInt(pageEl?.dataset.mcqCount || "", 10) || 0;
+    if (mcqEnabled && mcqCount <= 0) {
+        mcqCount = 1;
+    }
+    const mcqOnly = pageEl?.dataset.mcqOnly === "true";
     const deadlinePassed = pageEl?.dataset.deadlinePassed === "true";
     const eventTracking = pageEl?.dataset.eventTracking === "true";
     const keystrokeTracking = pageEl?.dataset.keystrokeTracking === "true";
@@ -102,9 +108,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const attemptsMeta = document.querySelector("[data-attempts-meta]");
     const vivaChatWindow = document.querySelector("[data-viva-chat-window]");
     const aiFeedbackEl = document.querySelector("[data-ai-feedback]");
+    const aiFeedbackCard = document.querySelector("[data-ai-feedback-card]");
     const teacherFeedbackEl = document.querySelector("[data-teacher-feedback]");
     const teacherFeedbackAuthorEl = document.querySelector("[data-teacher-feedback-author]");
     const teacherFeedbackCard = document.querySelector("[data-teacher-feedback-card]");
+    const mcqFeedbackEl = document.querySelector("[data-mcq-feedback]");
+    const mcqFeedbackCard = document.querySelector("[data-mcq-feedback-card]");
     const aiFeedbackDefault = aiFeedbackEl?.textContent || "";
     const teacherFeedbackDefault = teacherFeedbackEl?.textContent || "";
     const vivaHistoryLayout = document.querySelector("[data-viva-history-layout]");
@@ -121,6 +130,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const submissionList = document.querySelector("[data-submission-list]");
     const initialAiMessage = vivaChatWindow?.dataset.initialAi || "... Before we begin: answer in your own words, keep replies concise, stay focused on your submission. The viva will start as soon as you respond to this message.";
     const vivaFilesBox = document.querySelector("[data-viva-files]");
+    const mcqPanel = document.querySelector("[data-mcq-panel]");
+    const mcqQuestionEl = document.querySelector("[data-mcq-question]");
+    const mcqOptionsEl = document.querySelector("[data-mcq-options]");
+    const mcqNextBtn = document.querySelector("[data-mcq-next]");
+    const mcqProgressEl = document.querySelector("[data-mcq-progress]");
+    const mcqStatusEl = document.querySelector("[data-mcq-status]");
     let vivaIntroStarted = false;
     let vivaSessionActive = initialVivaStatus === "in_progress";
     let vivaSessionId = initialSessionId;
@@ -136,6 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let viewingHistory = false;
     let activeHistorySessionId = null;
     let showModelAnswers = false;
+    let mcqQuestions = [];
+    let mcqIndex = 0;
+    let mcqSelectedIndex = null;
+    let mcqCompleted = !mcqEnabled || mcqCount <= 0;
+    let mcqActive = false;
+    let mcqPendingSessionId = null;
+    let mcqPendingHistory = [];
     let startUrlDefault = summaryCta?.dataset.startUrl || null;
     const pendingInclusions = {};
     const maxFilesTotal = 10;
@@ -177,9 +199,73 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const updateFeedbackPanel = (aiText, teacherText, teacherAuthor) => {
+    const buildMcqIcon = (isCorrect) => {
+        const icon = document.createElement("span");
+        icon.className = `mcq-result-icon ${isCorrect ? "is-correct" : "is-wrong"}`;
+        icon.innerHTML = isCorrect
+            ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        return icon;
+    };
+
+    const renderMcqFeedback = (mcq) => {
+        if (!mcqFeedbackEl || !mcqFeedbackCard) return;
+        const summary = mcqFeedbackCard.querySelector("summary");
+        if (summary) {
+            summary.textContent = mcq && mcq.completed
+                ? `MCQ RESULTS · ${mcq.percent}%`
+                : "MCQ RESULTS";
+        }
+        mcqFeedbackEl.innerHTML = "";
+        if (!mcq || !mcq.completed) {
+            mcqFeedbackEl.textContent = "No MCQ results available.";
+            return;
+        }
+        const summaryLine = document.createElement("div");
+        summaryLine.className = "meta";
+        summaryLine.textContent = `Score: ${mcq.score}/${mcq.total} (${mcq.percent}%)`;
+        mcqFeedbackEl.appendChild(summaryLine);
+        const list = document.createElement("div");
+        list.className = "mcq-results";
+        const labels = ["A", "B", "C", "D"];
+        (mcq.questions || []).forEach((q, idx) => {
+            const item = document.createElement("div");
+            item.className = "mcq-result-item";
+            const studentIdx = q.student_index;
+            const correctIdx = q.correct_index;
+            const isCorrect = studentIdx === correctIdx;
+            const question = document.createElement("div");
+            question.className = "mcq-result-question";
+            question.appendChild(buildMcqIcon(isCorrect));
+            question.append(`Q${idx + 1}: ${q.question}`);
+            const studentText = typeof studentIdx === "number" && q.options?.[studentIdx]
+                ? `${labels[studentIdx]}. ${q.options[studentIdx]}`
+                : "No answer";
+            const correctText = typeof correctIdx === "number" && q.options?.[correctIdx]
+                ? `${labels[correctIdx]}. ${q.options[correctIdx]}`
+                : "Unavailable";
+            const studentLine = document.createElement("div");
+            studentLine.className = "meta";
+            studentLine.textContent = `Your answer: ${studentText} (${isCorrect ? "Correct" : "Incorrect"})`;
+            item.appendChild(question);
+            item.appendChild(studentLine);
+            if (!isCorrect) {
+                const correctLine = document.createElement("div");
+                correctLine.className = "meta";
+                correctLine.textContent = `Correct answer: ${correctText}`;
+                item.appendChild(correctLine);
+            }
+            list.appendChild(item);
+        });
+        mcqFeedbackEl.appendChild(list);
+    };
+
+    const updateFeedbackPanel = (aiText, teacherText, teacherAuthor, mcqResults, mcqOnlyValue = false) => {
         if (aiFeedbackEl) {
             aiFeedbackEl.textContent = aiText || aiFeedbackDefault;
+        }
+        if (aiFeedbackCard) {
+            aiFeedbackCard.classList.toggle("is-hidden", !!mcqOnlyValue);
         }
         const hasTeacherText = !!(teacherText && teacherText.trim());
         const hasTeacherAuthor = !!(teacherAuthor && teacherAuthor.trim());
@@ -205,12 +291,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 teacherFeedbackEl.textContent = teacherFeedbackDefault;
             }
         }
+        renderMcqFeedback(mcqResults);
     };
 
     const applySessionFeedback = (sessionId) => {
         if (!sessionId) return;
         const fb = sessionFeedback[String(sessionId)] || {};
-        updateFeedbackPanel(fb.ai_text || "", fb.teacher_text || "", fb.teacher_author || "");
+        updateFeedbackPanel(
+            fb.ai_text || "",
+            fb.teacher_text || "",
+            fb.teacher_author || "",
+            fb.mcq_results || null,
+            fb.mcq_only || false
+        );
     };
     const syncInstructorIncludes = () => {
         const rows = document.querySelectorAll("[data-instructor-resource]");
@@ -253,7 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const shouldLogEvent = (eventType) => {
-        if (["blur", "focus", "visibility", "paste", "copy"].includes(eventType)) {
+        if (["blur", "focus", "visibility", "paste", "copy", "mcq_copy"].includes(eventType)) {
             return eventTracking;
         }
         if (eventType === "heartbeat") {
@@ -268,12 +361,35 @@ document.addEventListener("DOMContentLoaded", () => {
         return false;
     };
 
+    const getMcqEventContext = () => {
+        if (!mcqActive) return {};
+        const context = {
+            mcq_active: true,
+            mcq_only: mcqOnly,
+        };
+        if (!mcqQuestions.length) {
+            return { ...context, mcq_state: "loading" };
+        }
+        const current = mcqQuestions[mcqIndex];
+        if (!current) {
+            return { ...context, mcq_state: "loading" };
+        }
+        return {
+            ...context,
+            mcq_state: "question",
+            mcq_question_order: mcqIndex + 1,
+            mcq_question_id: current.id ?? current.question_id ?? null,
+        };
+    };
+
     const queueLog = (eventType, eventData = {}) => {
         if (!shouldLogEvent(eventType)) return;
         if (!vivaSessionActive || !vivaSessionId) return;
+        const mcqContext = getMcqEventContext();
         const payload = {
             event_type: eventType,
             event_data: {
+                ...mcqContext,
                 ...eventData,
                 client_ts: new Date().toISOString(),
             },
@@ -331,8 +447,19 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!el) return false;
             return !!el.closest(".bubble.ai");
         };
-        if (!isWithinAiBubble(anchor) && !isWithinAiBubble(focus)) return;
-        queueLog("copy", { length: text.length, source: "ai" });
+        const isWithinMcq = (node) => {
+            if (!node) return false;
+            const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+            if (!el || !mcqPanel) return false;
+            return mcqPanel.contains(el);
+        };
+        if (isWithinAiBubble(anchor) || isWithinAiBubble(focus)) {
+            queueLog("copy", { length: text.length, source: "ai" });
+            return;
+        }
+        if (isWithinMcq(anchor) || isWithinMcq(focus)) {
+            queueLog("mcq_copy", { length: text.length });
+        }
     };
 
     const handlePaste = (e) => {
@@ -663,6 +790,14 @@ document.addEventListener("DOMContentLoaded", () => {
         vivaTimeRemaining = vivaTotalSeconds;
         vivaIntroStarted = false;
         viewingHistory = false;
+        mcqQuestions = [];
+        mcqIndex = 0;
+        mcqSelectedIndex = null;
+        mcqCompleted = !mcqEnabled || mcqCount <= 0;
+        mcqPendingSessionId = null;
+        mcqPendingHistory = [];
+        setMcqMode(false);
+        setMcqStatus("");
         clearInterval(vivaTimerInterval);
         vivaTimerInterval = null;
         vivaTimerStarted = false;
@@ -725,6 +860,144 @@ document.addEventListener("DOMContentLoaded", () => {
         if (vivaSend) {
             vivaSend.disabled = disabled;
         }
+    };
+
+    const setMcqStatus = (text, isLoading = false) => {
+        if (!mcqStatusEl) return;
+        mcqStatusEl.textContent = text || "";
+        mcqStatusEl.classList.toggle("is-loading", !!isLoading);
+    };
+
+    const setMcqMode = (active) => {
+        mcqActive = active;
+        if (mcqPanel) {
+            mcqPanel.classList.toggle("is-hidden", !active);
+        }
+        if (vivaHistoryLayout) {
+            vivaHistoryLayout.classList.toggle("is-hidden", active);
+        }
+        if (vivaInputRow) {
+            vivaInputRow.classList.toggle("is-hidden", active);
+        }
+        setVivaInputDisabled(active);
+        if (vivaSend) vivaSend.disabled = active;
+    };
+
+    const renderMcqQuestion = () => {
+        const total = mcqQuestions.length;
+        const current = mcqQuestions[mcqIndex];
+        if (!current || !mcqQuestionEl || !mcqOptionsEl) return;
+        mcqQuestionEl.textContent = current.question || "";
+        mcqOptionsEl.innerHTML = "";
+        mcqSelectedIndex = typeof current.selected_index === "number" ? current.selected_index : null;
+        (current.options || []).forEach((opt, idx) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "mcq-option";
+            btn.textContent = opt;
+            if (mcqSelectedIndex === idx) btn.classList.add("selected");
+            btn.addEventListener("click", () => {
+                mcqSelectedIndex = idx;
+                Array.from(mcqOptionsEl.querySelectorAll(".mcq-option")).forEach((el) => {
+                    el.classList.toggle("selected", el === btn);
+                });
+            });
+            mcqOptionsEl.appendChild(btn);
+        });
+        if (mcqProgressEl) {
+            mcqProgressEl.textContent = `Question ${mcqIndex + 1} of ${Math.max(1, total)}`;
+        }
+        if (mcqNextBtn) {
+            mcqNextBtn.textContent = mcqIndex + 1 >= total ? "Finish MCQ" : "Next";
+            mcqNextBtn.disabled = false;
+        }
+    };
+
+    const hasChatContent = () => {
+        if (!vivaChatWindow) return false;
+        return !!vivaChatWindow.querySelector(".bubble");
+    };
+
+    const renderChatForSession = (sessionId, historyOverride = null) => {
+        const history = historyOverride ?? (sessionHistories[String(sessionId)] || []);
+        clearVivaChat();
+        if (history.length === 0) {
+            vivaIntroStarted = false;
+            playVivaIntro();
+        } else {
+            vivaIntroStarted = true;
+            history.forEach((m) => {
+                const sender = (m.sender || "").toLowerCase() === "ai" ? "ai" : "user";
+                addVivaBubble(sender, m.text || "");
+            });
+        }
+        setVivaInputDisabled(false);
+        vivaInputRow?.classList.remove("is-hidden");
+        renderSessionFiles(sessionId, true);
+    };
+
+    const startMcqFlow = async (sessionId, historyOverride = null) => {
+        if (!mcqEnabled || mcqCount <= 0) {
+            mcqCompleted = true;
+            setMcqMode(false);
+            const history = historyOverride ?? (sessionHistories[String(sessionId)] || []);
+            if (history.length || !hasChatContent()) {
+                renderChatForSession(sessionId, history);
+            }
+            return;
+        }
+        setMcqMode(true);
+        setMcqStatus(
+            mcqOnly
+                ? "This attempt is MCQ-only. It will submit automatically after the quiz."
+                : "Generating MCQs",
+            !mcqOnly
+        );
+        if (mcqNextBtn) mcqNextBtn.disabled = true;
+        mcqPendingSessionId = sessionId;
+        mcqPendingHistory = historyOverride || [];
+        if (!vivaTimerStarted) startVivaTimer();
+        const data = await sendToServer({
+            session_id: sessionId,
+        }, "/viva/mcq/");
+        if (!data || data.status !== "ok") {
+            setMcqStatus("MCQ unavailable. Continuing to viva.", false);
+            setTimeout(() => {
+                setMcqMode(false);
+                mcqCompleted = true;
+                renderChatForSession(sessionId, historyOverride);
+            }, 900);
+            return;
+        }
+        mcqQuestions = Array.isArray(data.questions) ? data.questions : [];
+        mcqCompleted = !!data.completed;
+        if (!mcqQuestions.length) {
+            setMcqStatus("MCQ unavailable. Continuing to viva.", false);
+            setTimeout(() => {
+                setMcqMode(false);
+                mcqCompleted = true;
+                renderChatForSession(sessionId, historyOverride);
+            }, 900);
+            return;
+        }
+        if (mcqCompleted) {
+            if (mcqOnly) {
+                await endSession("");
+                showSummary();
+            } else {
+                setMcqMode(false);
+                renderChatForSession(sessionId, historyOverride);
+            }
+            return;
+        }
+        const firstUnanswered = mcqQuestions.findIndex((q) => q.selected_index == null);
+        mcqIndex = firstUnanswered >= 0 ? firstUnanswered : 0;
+        if (mcqOnly) {
+            setMcqStatus("MCQ-only attempt. Auto-submits after the quiz.", false);
+        } else {
+            setMcqStatus("", false);
+        }
+        renderMcqQuestion();
     };
 
     const addVivaBubble = (sender, text, options = {}) => {
@@ -1061,6 +1334,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sessionId: closingSessionId,
             feedbackText: response?.feedback_text || "",
             feedbackVisible: !!response?.feedback_visible,
+            mcqResults: response?.mcq_results || null,
         };
     };
 
@@ -1103,12 +1377,17 @@ document.addEventListener("DOMContentLoaded", () => {
             const sessionId = result?.sessionId;
             const aiText = result?.feedbackText || "";
             const aiVisible = !!result?.feedbackVisible;
+            const mcqResults = result?.mcqResults || result?.mcq_results || null;
             if (sessionId) {
                 sessionHistories[String(sessionId)] = historySnapshot;
-                if (aiVisible && aiText) {
+                const hasFeedback = aiVisible && aiText;
+                const existing = sessionFeedback[String(sessionId)] || {};
+                if (hasFeedback || mcqResults) {
                     sessionFeedback[String(sessionId)] = {
-                        ai_text: aiText,
-                        teacher_text: sessionFeedback[String(sessionId)]?.teacher_text || "",
+                        ai_text: hasFeedback ? aiText : existing.ai_text || "",
+                        teacher_text: existing.teacher_text || "",
+                        teacher_author: existing.teacher_author || "",
+                        mcq_results: mcqResults || existing.mcq_results || null,
                     };
                 }
                 const selectedFiles = buildSelectedFiles();
@@ -1130,7 +1409,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     thinking?.remove();
                     if (aiVisible && aiText) {
                         addVivaBubble("ai", aiText);
-                        updateFeedbackPanel(aiText, "");
+                        updateFeedbackPanel(aiText, "", "", mcqResults, mcqOnly);
                         addRatingBar();
                     } else {
                         showSummary();
@@ -1139,7 +1418,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else if (aiVisible && aiText) {
                 clearVivaChat();
                 addVivaBubble("ai", aiText);
-                updateFeedbackPanel(aiText, "");
+                updateFeedbackPanel(aiText, "", "", mcqResults, mcqOnly);
                 addRatingBar();
             } else {
                 showSummary();
@@ -1228,6 +1507,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const showHistory = (sessionId) => {
         viewingHistory = true;
         vivaSessionActive = false;
+        setMcqMode(false);
+        setMcqStatus("");
+        mcqPendingSessionId = null;
+        mcqPendingHistory = [];
         stopHeartbeat();
         activeHistorySessionId = sessionId;
         showModelAnswers = false;
@@ -1245,7 +1528,7 @@ document.addEventListener("DOMContentLoaded", () => {
         updateVivaControls();
     };
 
-    const showActiveSession = () => {
+    const showActiveSession = async () => {
         const activeId = vivaSessionId || lastSessionId || initialSessionId;
         if (!activeId) return;
         vivaSessionId = activeId;
@@ -1267,19 +1550,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setHistoryFeedbackVisible(false);
         applySessionFeedback(activeId);
         clearVivaChat();
-        if (history.length === 0) {
-            vivaIntroStarted = false;
-            playVivaIntro();
-        } else {
-            vivaIntroStarted = true; // prevent intro reset
-            history.forEach((m) => {
-                const sender = (m.sender || "").toLowerCase() === "ai" ? "ai" : "user";
-                addVivaBubble(sender, m.text || "");
-            });
-        }
-        renderSessionFiles(activeId, true);
-        setVivaInputDisabled(false);
-        vivaInputRow?.classList.remove("is-hidden");
+        vivaIntroStarted = true;
         navBar?.classList.add("viva-active");
         if (vivaTimeRemaining <= 0) {
             enterSubmitMode();
@@ -1289,6 +1560,7 @@ document.addEventListener("DOMContentLoaded", () => {
         startHeartbeat();
         showChat(false);
         updateVivaControls();
+        await startMcqFlow(activeId, history);
     };
 
     if (modelToggleBtn) {
@@ -1300,12 +1572,78 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
     if (earlySubmitBtn) {
-        earlySubmitBtn.addEventListener("click", (e) => {
+        earlySubmitBtn.addEventListener("click", async (e) => {
             e.preventDefault();
             if (!allowEarlySubmit || vivaExpired || viewingHistory) return;
             if (!vivaSessionActive) return;
+            if (mcqActive) {
+                setMcqMode(false);
+                enterSubmitMode();
+                await handleVivaSend();
+                return;
+            }
             enterSubmitMode();
             vivaInput?.focus();
+        });
+    }
+
+    if (mcqNextBtn) {
+        mcqNextBtn.addEventListener("click", async () => {
+            if (!mcqQuestions.length || mcqPendingSessionId == null) return;
+            if (mcqSelectedIndex == null) {
+            setMcqStatus("Select an option to continue.", false);
+            return;
+        }
+            const current = mcqQuestions[mcqIndex];
+            if (!current) return;
+            const questionId = current.id ?? current.question_id;
+            if (questionId == null) {
+                setMcqStatus("Unable to save answer. Refresh and try again.", false);
+                mcqNextBtn.disabled = false;
+                return;
+            }
+            mcqNextBtn.disabled = true;
+            setMcqStatus("Saving...", false);
+            const response = await sendToServer({
+                session_id: mcqPendingSessionId,
+                question_id: questionId,
+                selected_index: mcqSelectedIndex,
+            }, "/viva/mcq/answer/");
+            if (!response || response.status !== "ok") {
+                setMcqStatus("Unable to save answer. Try again.", false);
+                mcqNextBtn.disabled = false;
+                return;
+            }
+            current.selected_index = mcqSelectedIndex;
+            mcqSelectedIndex = null;
+            const nextIndex = mcqQuestions.findIndex((q, idx) => idx > mcqIndex && q.selected_index == null);
+            if (nextIndex >= 0) {
+                mcqIndex = nextIndex;
+                setMcqStatus("", false);
+                renderMcqQuestion();
+                return;
+            }
+            const remainingIndex = mcqQuestions.findIndex((q) => q.selected_index == null);
+            if (remainingIndex >= 0) {
+                mcqIndex = remainingIndex;
+                setMcqStatus("", false);
+                renderMcqQuestion();
+                return;
+            }
+            mcqCompleted = true;
+            if (mcqOnly) {
+                setMcqStatus("MCQ complete. Submitting...", false);
+                setTimeout(async () => {
+                    await endSession("");
+                    showSummary();
+                }, 700);
+            } else {
+                setMcqStatus("MCQ complete. Starting viva...", false);
+                setTimeout(() => {
+                    setMcqMode(false);
+                    renderChatForSession(mcqPendingSessionId, mcqPendingHistory);
+                }, 700);
+            }
         });
     }
 
@@ -1368,7 +1706,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!summaryCard || !chatCard) return;
         summaryCard.classList.add("is-hidden");
         chatCard.classList.remove("is-hidden");
-        if (!viewingHistory && !vivaIntroStarted) {
+        if (!viewingHistory && !vivaIntroStarted && mcqCompleted && !mcqOnly) {
             vivaInputRow?.classList.remove("is-hidden");
             playVivaIntro();
         }
@@ -1383,6 +1721,10 @@ document.addEventListener("DOMContentLoaded", () => {
         viewingHistory = false;
         activeHistorySessionId = null;
         showModelAnswers = false;
+        setMcqMode(false);
+        setMcqStatus("");
+        mcqPendingSessionId = null;
+        mcqPendingHistory = [];
         stopHeartbeat();
         chatCard.classList.remove("is-history");
         setHistoryFeedbackVisible(false);
@@ -1395,7 +1737,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     startVivaBtns.forEach(btn => {
-        btn.addEventListener("click", (e) => {
+        btn.addEventListener("click", async (e) => {
             e.preventDefault();
             if (!hasUnlimitedAttempts() && attemptsLeft <= 0) return;
             if (!validateUploadSelection()) return;
@@ -1406,6 +1748,10 @@ document.addEventListener("DOMContentLoaded", () => {
             resetVivaForNewAttempt();
             updateVivaControls();
             showChat(false);
+            const activeId = await ensureSession(startUrlDefault);
+            if (activeId) {
+                await startMcqFlow(activeId);
+            }
         });
     });
 
@@ -1443,7 +1789,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (summaryCta) {
-        summaryCta.addEventListener("click", (e) => {
+        summaryCta.addEventListener("click", async (e) => {
             const action = summaryCta.dataset.action;
             if (action === "preview") {
                 openSubmissionPreview();
@@ -1457,6 +1803,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 resetVivaForNewAttempt();
                 updateVivaControls();
                 showChat(false);
+                const activeId = await ensureSession(startUrlDefault);
+                if (activeId) {
+                    await startMcqFlow(activeId);
+                }
             } else if (action === "resume") {
                 showActiveSession();
             }

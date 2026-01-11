@@ -12,7 +12,7 @@ from .submission import (
     delete_assignment_resource,
 )
 from .nrps_test import nrps_test
-from .viva import viva_start, viva_session, viva_send_message, viva_toggle_submission, viva_toggle_resource, viva_log_event, viva_ping, viva_summary, viva_logs, viva_feedback_update, viva_knowledge_flag_update
+from .viva import viva_start, viva_session, viva_send_message, viva_toggle_submission, viva_toggle_resource, viva_log_event, viva_ping, viva_summary, viva_logs, viva_feedback_update, viva_knowledge_flag_update, viva_mcq, viva_mcq_answer
 from .home import home
 from .blog import blog_list, blog_detail
 from .standalone import (

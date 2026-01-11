@@ -82,6 +82,18 @@ class Assignment(models.Model):
     allow_student_uploads = models.BooleanField(default=True)
     self_enroll_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
     self_enroll_domain = models.CharField(max_length=255, blank=True, default="")
+    mcq_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable an MCQ round before the viva chat.",
+    )
+    mcq_question_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of MCQ questions to ask at the start of the viva.",
+    )
+    mcq_only = models.BooleanField(
+        default=False,
+        help_text="Run MCQ only and auto-submit after the quiz.",
+    )
 
 
     def __str__(self):
@@ -176,6 +188,9 @@ class VivaSession(models.Model):
     )
     rating = models.IntegerField(null=True, blank=True)
     knowledge_flag = models.CharField(max_length=32, blank=True)
+    mcq_completed = models.BooleanField(default=False)
+    mcq_score = models.IntegerField(null=True, blank=True)
+    mcq_total = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
         return f"Viva for {self.submission.user_id} (session {self.id})"
@@ -187,6 +202,16 @@ class VivaMessage(models.Model):
     text = models.TextField()
     model_answer = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class VivaSessionMcqQuestion(models.Model):
+    session = models.ForeignKey(VivaSession, on_delete=models.CASCADE, related_name="mcq_questions")
+    order = models.PositiveSmallIntegerField(default=0)
+    question = models.TextField()
+    options = models.JSONField(default=list)
+    correct_index = models.PositiveSmallIntegerField(default=0)
+    student_index = models.PositiveSmallIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class VivaSessionSubmission(models.Model):

@@ -148,6 +148,29 @@
                         </div>
                     </div>
                 </div>
+                <div class="settings-row split">
+                    <div>
+                        <label>Enable MCQ round</label>
+                        <label class="switch">
+                            <input type="checkbox" name="mcq_enabled" {% if edit_mode %}{% if assignment.mcq_enabled %}checked{% endif %}{% else %}{% if default_mcq_enabled %}checked{% endif %}{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                        <div class="meta">Short MCQ quiz before the viva chat.</div>
+                    </div>
+                    <div>
+                        <label for="mcq_question_count">MCQ question count</label>
+                        <input type="number" id="mcq_question_count" name="mcq_question_count" min="1" max="20" step="1" value="{% if edit_mode %}{{ assignment.mcq_question_count|default:1 }}{% else %}{{ default_mcq_question_count|default:1 }}{% endif %}">
+                        <div class="meta">One correct answer plus three distractors.</div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <label>MCQ only</label>
+                    <label class="switch">
+                        <input type="checkbox" name="mcq_only" {% if edit_mode %}{% if assignment.mcq_only %}checked{% endif %}{% else %}{% if default_mcq_only %}checked{% endif %}{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                    <div class="meta">Skip the viva chat and submit immediately after the quiz.</div>
+                </div>
                 <div class="settings-row">
                     <label>Tracking</label>
                     <div class="tracking-table">

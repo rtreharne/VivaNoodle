@@ -84,6 +84,9 @@ def deeplink(request):
         "default_event_tracking": True,
         "default_keystroke_tracking": True,
         "default_arrhythmic_typing": True,
+        "default_mcq_enabled": False,
+        "default_mcq_question_count": 0,
+        "default_mcq_only": False,
     })
 
 
@@ -109,6 +112,25 @@ def deeplink_submit(request):
     event_tracking = request.POST.get("event_tracking") == "on"
     keystroke_tracking = request.POST.get("keystroke_tracking") == "on"
     arrhythmic_typing = request.POST.get("arrhythmic_typing") == "on"
+    mcq_enabled = request.POST.get("mcq_enabled") == "on"
+    mcq_question_count = request.POST.get("mcq_question_count", "0")
+    mcq_only = request.POST.get("mcq_only") == "on"
+    if not mcq_enabled:
+        mcq_only = False
+        mcq_question_count = "0"
+    if mcq_enabled:
+        try:
+            if int(mcq_question_count) <= 0:
+                mcq_question_count = "1"
+        except (TypeError, ValueError):
+            mcq_question_count = "1"
+    if mcq_only:
+        mcq_enabled = True
+        try:
+            if int(mcq_question_count) <= 0:
+                mcq_question_count = "1"
+        except (TypeError, ValueError):
+            mcq_question_count = "1"
     viva_instructions = request.POST.get("viva_instructions", "")
     additional_prompts = request.POST.get("additional_prompts", "")
     instructor_notes = request.POST.get("instructor_notes", "")
@@ -128,6 +150,9 @@ def deeplink_submit(request):
         "event_tracking": "true" if event_tracking else "false",
         "keystroke_tracking": "true" if keystroke_tracking else "false",
         "arrhythmic_typing": "true" if arrhythmic_typing else "false",
+        "mcq_enabled": "true" if mcq_enabled else "false",
+        "mcq_question_count": str(mcq_question_count),
+        "mcq_only": "true" if mcq_only else "false",
         "viva_instructions": viva_instructions,
         "additional_prompts": additional_prompts,
         "instructor_notes": instructor_notes,

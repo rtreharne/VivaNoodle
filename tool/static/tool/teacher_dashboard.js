@@ -26,6 +26,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const transcriptFiles = document.querySelector("[data-transcript-files]");
     const modelToggleBtn = document.querySelector("[data-toggle-model]");
     const aiFeedbackEl = document.querySelector("[data-ai-feedback]");
+    const aiFeedbackCard = document.querySelector("[data-ai-feedback-card]");
+    const mcqFeedbackEl = document.querySelector("[data-mcq-feedback]");
+    const mcqFeedbackCard = document.querySelector("[data-mcq-feedback-card]");
     const teacherFeedbackForm = document.querySelector("[data-teacher-feedback-form]");
     const teacherFeedbackInput = document.querySelector("[data-teacher-feedback-input]");
     const teacherFeedbackAuthorEl = document.querySelector("[data-teacher-feedback-author]");
@@ -62,6 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const settingsForm = document.querySelector("[data-settings-form]");
     const saveStatus = document.querySelector("[data-save-status]");
     const toast = document.querySelector("[data-save-toast]");
+    const mcqToggle = document.querySelector("[data-mcq-toggle]");
+    const mcqCountInput = document.querySelector("[data-mcq-count]");
+    const mcqOnlyToggle = document.querySelector("[data-mcq-only]");
+    const mcqRows = document.querySelectorAll("[data-mcq-row]");
+    const mcqToggleRow = document.querySelector("[data-mcq-toggle-row]");
     let activeStudent = null;
     let activeFeedbackSessionId = null;
     let activeKnowledgeFlagSessionId = null;
@@ -198,6 +206,8 @@ document.addEventListener("DOMContentLoaded", () => {
             case "copy":
                 if (data.source !== "ai") return null;
                 return `Event: AI message copied${data.length ? ` (${data.length} chars)` : ""}`;
+            case "mcq_copy":
+                return `Event: MCQ text copied${data.length ? ` (${data.length} chars)` : ""}`;
             case "cut":
                 return null;
             case "arrhythmic_typing":
@@ -207,6 +217,20 @@ document.addEventListener("DOMContentLoaded", () => {
             default:
                 return `Event: ${type}`;
         }
+    };
+
+    const formatMcqPrefix = (event) => {
+        const data = event?.data || {};
+        if (data.mcq_question_order) {
+            return `MCQ Q${data.mcq_question_order} · `;
+        }
+        if (data.mcq_state === "loading") {
+            return "MCQ (loading) · ";
+        }
+        if (data.mcq_active) {
+            return "MCQ · ";
+        }
+        return "";
     };
 
     const bindPreviewLink = (link) => {
@@ -405,8 +429,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const output = [];
         let lastBlur = null;
         events.forEach((evt) => {
-            const ts = evt.timestamp;
+            const ts = evt.timestamp || evt.data?.client_ts || "";
             const type = evt.type;
+            const prefix = formatMcqPrefix(evt);
             if (type === "visibility") return;
             if (type === "blur") {
                 lastBlur = ts;
@@ -417,18 +442,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     const awayMs = new Date(ts).getTime() - new Date(lastBlur).getTime();
                     const awaySeconds = Math.max(0, Math.round(awayMs / 1000));
                     output.push({
-                        label: `Event: student navigated away from viva for ${awaySeconds} second${awaySeconds === 1 ? "" : "s"}`,
+                        label: `${prefix}Event: student navigated away from viva for ${awaySeconds} second${awaySeconds === 1 ? "" : "s"}`,
                         timestamp: ts,
                     });
                 } else if (ts) {
-                    output.push({ label: "Event: window focused", timestamp: ts });
+                    output.push({ label: `${prefix}Event: window focused`, timestamp: ts });
                 }
                 lastBlur = null;
                 return;
             }
             const label = formatEventLabel(evt);
             if (!label) return;
-            output.push({ label, timestamp: ts });
+            output.push({ label: `${prefix}${label}`, timestamp: ts });
         });
         return output;
     };
@@ -437,28 +462,25 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!transcriptChat) return;
         transcriptChat.innerHTML = "";
 
-        const timeline = [];
-        messages.forEach(msg => {
-            timeline.push({
-                kind: "message",
-                sender: msg.sender,
-                text: msg.text,
-                timestamp: msg.timestamp,
-                model_answer: msg.model_answer || "",
-            });
-        });
-        buildEventTimeline(events).forEach(evt => {
-            timeline.push({
-                kind: "event",
-                label: evt.label,
-                timestamp: evt.timestamp,
-            });
-        });
-
-        const withTime = timeline.filter(item => item.timestamp);
-        const withoutTime = timeline.filter(item => !item.timestamp);
-        withTime.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        const ordered = [...withTime, ...withoutTime];
+        const eventItems = buildEventTimeline(events).map(evt => ({
+            kind: "event",
+            label: evt.label,
+            timestamp: evt.timestamp,
+        }));
+        const messageItems = (messages || []).map(msg => ({
+            kind: "message",
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: msg.timestamp,
+            model_answer: msg.model_answer || "",
+        }));
+        const orderByTimestamp = (items) => {
+            const withTime = items.filter(item => item.timestamp);
+            const withoutTime = items.filter(item => !item.timestamp);
+            withTime.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            return [...withTime, ...withoutTime];
+        };
+        const ordered = orderByTimestamp([...eventItems, ...messageItems]);
 
         if (!ordered.length) {
             const p = document.createElement("div");
@@ -583,13 +605,78 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const renderFeedback = (feedback = null, sessionId = null) => {
+    const buildMcqIcon = (isCorrect) => {
+        const icon = document.createElement("span");
+        icon.className = `mcq-result-icon ${isCorrect ? "is-correct" : "is-wrong"}`;
+        icon.innerHTML = isCorrect
+            ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        return icon;
+    };
+
+    const renderMcqFeedback = (mcq) => {
+        if (!mcqFeedbackEl || !mcqFeedbackCard) return;
+        const summary = mcqFeedbackCard.querySelector("summary");
+        if (summary) {
+            summary.textContent = mcq && mcq.completed
+                ? `MCQ RESULTS · ${mcq.percent}%`
+                : "MCQ RESULTS";
+        }
+        mcqFeedbackEl.innerHTML = "";
+        if (!mcq || !mcq.completed) {
+            mcqFeedbackEl.textContent = "MCQ results will appear once the viva ends.";
+            return;
+        }
+        const summaryLine = document.createElement("div");
+        summaryLine.className = "meta";
+        summaryLine.textContent = `Score: ${mcq.score}/${mcq.total} (${mcq.percent}%)`;
+        mcqFeedbackEl.appendChild(summaryLine);
+        const list = document.createElement("div");
+        list.className = "mcq-results";
+        const labels = ["A", "B", "C", "D"];
+        (mcq.questions || []).forEach((q, idx) => {
+            const item = document.createElement("div");
+            item.className = "mcq-result-item";
+            const studentIdx = q.student_index;
+            const correctIdx = q.correct_index;
+            const isCorrect = studentIdx === correctIdx;
+            const question = document.createElement("div");
+            question.className = "mcq-result-question";
+            question.appendChild(buildMcqIcon(isCorrect));
+            question.append(`Q${idx + 1}: ${q.question}`);
+            const studentText = typeof studentIdx === "number" && q.options?.[studentIdx]
+                ? `${labels[studentIdx]}. ${q.options[studentIdx]}`
+                : "No answer";
+            const correctText = typeof correctIdx === "number" && q.options?.[correctIdx]
+                ? `${labels[correctIdx]}. ${q.options[correctIdx]}`
+                : "Unavailable";
+            const studentLine = document.createElement("div");
+            studentLine.className = "meta";
+            studentLine.textContent = `Student answer: ${studentText} (${isCorrect ? "Correct" : "Incorrect"})`;
+            item.appendChild(question);
+            item.appendChild(studentLine);
+            if (!isCorrect) {
+                const correctLine = document.createElement("div");
+                correctLine.className = "meta";
+                correctLine.textContent = `Correct answer: ${correctText}`;
+                item.appendChild(correctLine);
+            }
+            list.appendChild(item);
+        });
+        mcqFeedbackEl.appendChild(list);
+    };
+
+    const renderFeedback = (feedback = null, sessionId = null, mcqOnly = false) => {
         activeFeedbackSessionId = sessionId || null;
         if (aiFeedbackEl) {
             aiFeedbackEl.textContent = (feedback && feedback.ai_text)
                 ? feedback.ai_text
                 : "AI feedback will appear once the viva ends.";
         }
+        if (aiFeedbackCard) {
+            aiFeedbackCard.classList.toggle("is-hidden", !!mcqOnly);
+        }
+        renderMcqFeedback(feedback?.mcq_results || null);
         if (teacherFeedbackInput) {
             teacherFeedbackInput.value = feedback?.teacher_text || "";
             teacherFeedbackInput.disabled = !activeFeedbackSessionId;
@@ -729,7 +816,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         renderTranscriptTimeline(attempt.messages || [], attempt.events || []);
         renderFlags(attempt.flags || []);
-        renderFeedback(attempt.feedback, attempt.session_id);
+        renderFeedback(attempt.feedback, attempt.session_id, !!attempt.mcq_only);
         renderFiles(attempt.files || []);
         activeKnowledgeFlagSessionId = attempt.session_id || null;
         if (knowledgeFlagInput) {
@@ -911,6 +998,32 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
     };
+
+    const syncMcqSettings = () => {
+        if (!mcqToggle) return;
+        const enabled = !!mcqToggle.checked;
+        if (!enabled && mcqOnlyToggle) {
+            mcqOnlyToggle.checked = false;
+        }
+        if (enabled && mcqCountInput) {
+            const countVal = parseInt(mcqCountInput.value, 10);
+            if (!Number.isFinite(countVal) || countVal < 1) {
+                mcqCountInput.value = "1";
+            }
+        }
+        if (mcqCountInput) mcqCountInput.disabled = !enabled;
+        if (mcqOnlyToggle) mcqOnlyToggle.disabled = !enabled;
+        mcqRows.forEach((row) => {
+            if (row === mcqToggleRow) return;
+            row.classList.toggle("is-hidden", !enabled);
+            row.style.display = enabled ? "" : "none";
+        });
+    };
+
+    if (mcqToggle) {
+        mcqToggle.addEventListener("change", syncMcqSettings);
+        syncMcqSettings();
+    }
 
     backButtons.forEach((btn) => {
         btn.addEventListener("click", () => {

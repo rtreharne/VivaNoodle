@@ -146,7 +146,7 @@
             <div class="carousel">
                 <div class="carousel-pane active" data-dash-pane="table">
                     <div class="table-card">
-                        <div class="table-head cols-4">
+                        <div class="table-head {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}cols-5{% else %}cols-4{% endif %}">
                             <div>Student</div>
                             <div>
                                 <button class="table-filter" type="button" data-filter="viva" aria-pressed="false">
@@ -154,6 +154,9 @@
                                     <span class="filter-indicator is-hidden" data-filter-indicator="viva"></span>
                                 </button>
                             </div>
+                            {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}
+                                <div>MCQ</div>
+                            {% endif %}
                             <div>Alignment</div>
                             <div>
                                 <button class="table-filter" type="button" data-filter="flags" aria-pressed="false">
@@ -165,7 +168,7 @@
 
                         {% if students %}
                             {% for student in students %}
-                                <div class="table-row cols-4"
+                                <div class="table-row {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}cols-5{% else %}cols-4{% endif %}"
                                      data-student-row
                                      data-student-id="{{ student.user_id }}"
                                      data-student-search="{{ student.name|lower }} {{ student.email|default:''|lower }}"
@@ -201,6 +204,15 @@
                                             {% endif %}
                                         {% endif %}
                                     </div>
+                                    {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}
+                                        <div class="viva-cell mcq-cell" data-label="MCQ">
+                                            {% if student.mcq_results and student.mcq_results.completed %}
+                                                {{ student.mcq_results.percent }}%
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
                                     <div class="flag alignment-flag" data-label="Alignment">
                                         {% if student.knowledge_flag %}
                                             <details class="flag-details">
@@ -238,9 +250,12 @@
                                 </div>
                             {% endfor %}
                         {% else %}
-                            <div class="table-row cols-4">
+                            <div class="table-row {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}cols-5{% else %}cols-4{% endif %}">
                                 <div>No roster available</div>
                                 <div class="viva-cell"><span class="viva-status no"></span><span class="link disabled">—</span></div>
+                                {% if assignment.mcq_enabled and assignment.mcq_question_count|default:0 > 0 %}
+                                    <div class="viva-cell">—</div>
+                                {% endif %}
                                 <div class="flag alignment-flag">—</div>
                                 <div class="flag none">—</div>
                             </div>
@@ -285,6 +300,12 @@
                                 </ul>
                             </div>
                             <div class="side-card">
+                                <details class="mcq-details" data-mcq-feedback-card>
+                                    <summary class="tiny">MCQ results</summary>
+                                    <div class="feedback-block" data-mcq-feedback>MCQ results will appear once the viva ends.</div>
+                                </details>
+                            </div>
+                            <div class="side-card" data-ai-feedback-card>
                                 <p class="tiny">AI feedback</p>
                                 <div class="feedback-block" data-ai-feedback>AI feedback will appear once the viva ends.</div>
                             </div>
@@ -456,6 +477,40 @@
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" name="allow_student_uploads" {% if assignment.allow_student_uploads %}checked{% endif %}>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                    <div class="settings-row">
+                        <details class="settings-details">
+                            <summary>MCQ settings</summary>
+                            <div class="tracking-table">
+                                <div class="tracking-item" data-mcq-row data-mcq-toggle-row>
+                                    <div>
+                                        <div class="tracking-label">Enable MCQ round</div>
+                                        <div class="meta">Short MCQ quiz before the viva chat.</div>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="mcq_enabled" data-mcq-toggle {% if assignment.mcq_enabled %}checked{% endif %}>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="tracking-item" data-mcq-row data-mcq-count-row>
+                                    <div>
+                                        <div class="tracking-label">MCQ question count</div>
+                                        <div class="meta">One correct answer plus three distractors.</div>
+                                    </div>
+                                    <input type="number" id="mcq_question_count" name="mcq_question_count" data-mcq-count min="1" max="20" step="1" value="{{ assignment.mcq_question_count|default:1 }}">
+                                </div>
+                                <div class="tracking-item" data-mcq-row data-mcq-only-row>
+                                    <div>
+                                        <div class="tracking-label">MCQ only</div>
+                                        <div class="meta">Skip the viva chat and submit immediately after the quiz.</div>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="mcq_only" data-mcq-only {% if assignment.mcq_only %}checked{% endif %}>
                                         <span class="slider"></span>
                                     </label>
                                 </div>

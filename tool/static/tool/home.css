@@ -2514,6 +2514,27 @@ a.link {
         display: flex;
     }
 
+    .nav.nav-with-menu.nav-with-timer [data-nav-links] {
+        display: flex;
+        border-top: none;
+        padding-top: 0;
+    }
+
+    .nav.nav-with-menu.nav-with-timer [data-nav-links] > :not(.viva-nav-timer) {
+        display: none;
+    }
+
+    .nav.nav-with-menu.nav-with-timer [data-nav-links].open {
+        border-top: 1px solid var(--border);
+        padding-top: 10px;
+    }
+
+    .nav.nav-with-menu.nav-with-timer [data-nav-links].open > :not(.viva-nav-timer) {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+    }
+
     .table-controls.table-controls-split {
         flex-direction: column;
         align-items: stretch;
@@ -2648,6 +2669,9 @@ a.link {
     display: inline-flex;
     align-items: center;
     gap: 10px;
+}
+.viva-head-actions .viva-nav-timer {
+    margin-right: 4px;
 }
 
 .settings-row {
@@ -3033,6 +3057,151 @@ a.link {
     background: rgba(15, 23, 42, 0.02);
 }
 
+.mcq-panel {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+[data-theme="light"] .mcq-panel {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+.mcq-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mcq-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.mcq-question {
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.mcq-options {
+    display: grid;
+    gap: 8px;
+}
+
+.mcq-option {
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    color: inherit;
+    cursor: pointer;
+}
+
+[data-theme="light"] .mcq-option {
+    background: #ffffff;
+    border-color: #e2e8f0;
+}
+
+.mcq-option.selected {
+    border-color: rgba(56, 189, 248, 0.8);
+    background: rgba(56, 189, 248, 0.15);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.15);
+}
+
+[data-theme="light"] .mcq-option.selected {
+    border-color: rgba(14, 165, 233, 0.7);
+    background: rgba(14, 165, 233, 0.12);
+}
+
+.mcq-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.mcq-details summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.mcq-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.mcq-details summary::after {
+    content: "+";
+    float: right;
+    opacity: 0.6;
+}
+
+.mcq-details[open] summary::after {
+    content: "-";
+}
+
+.mcq-status.is-loading::after {
+    content: "...";
+    display: inline-block;
+    margin-left: 6px;
+    animation: mcqEllipsis 1.2s steps(4, end) infinite;
+    overflow: hidden;
+    vertical-align: bottom;
+}
+
+@keyframes mcqEllipsis {
+    0% { width: 0; }
+    100% { width: 12px; }
+}
+
+.mcq-results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.mcq-result-item {
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+}
+
+.mcq-result-question {
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mcq-result-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mcq-result-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.mcq-result-icon.is-correct {
+    color: #22c55e;
+    opacity: 0.8;
+}
+
+.mcq-result-icon.is-wrong {
+    color: #ef4444;
+    opacity: 0.75;
+}
+
 .viva-input {
     margin-top: 16px;
 }
@@ -3173,6 +3342,15 @@ a.link {
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.02);
     cursor: pointer;
+}
+.tracking-item.is-disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+.tracking-item.is-disabled input,
+.tracking-item.is-disabled select,
+.tracking-item.is-disabled textarea {
+    pointer-events: none;
 }
 
 .tracking-label {
@@ -3739,6 +3917,11 @@ a.link {
     grid-template-columns: 1.8fr 1.2fr 1.1fr 1fr;
 }
 
+.table-head.cols-5,
+.table-row.cols-5 {
+    grid-template-columns: 1.6fr 1.1fr 0.8fr 1.1fr 1fr;
+}
+
 .table-head.cols-2,
 .table-row.cols-2 {
     grid-template-columns: 3fr 1fr;
@@ -3805,6 +3988,7 @@ a.link {
         grid-template-areas:
             "student"
             "viva"
+            "mcq"
             "alignment"
             "flag";
         align-items: flex-start;
@@ -3822,6 +4006,10 @@ a.link {
     }
     .table-row .viva-cell:not(.student-cell) {
         grid-area: viva;
+        width: 100%;
+    }
+    .table-row .mcq-cell {
+        grid-area: mcq;
         width: 100%;
     }
     .table-row .flag {

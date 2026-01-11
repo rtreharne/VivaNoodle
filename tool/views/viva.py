@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import re
 import secrets
 from datetime import timedelta
@@ -10,7 +11,7 @@ from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 
 from openai import OpenAI
-from tool.models import Submission, VivaSession, VivaSessionSubmission, InteractionLog, VivaMessage, AssignmentResource, AssignmentResourcePreference, VivaSessionResource
+from tool.models import Submission, VivaSession, VivaSessionSubmission, InteractionLog, VivaMessage, AssignmentResource, AssignmentResourcePreference, VivaSessionResource, VivaSessionMcqQuestion
 from .helpers import is_instructor_role, is_admin_role
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
@@ -76,11 +77,45 @@ MAX_CONTEXT_CHARS = 450000
 MAX_FILE_CHARS = 150000
 MAX_HISTORY_MESSAGES = 20
 MAX_VIVA_MESSAGE_CHARS = 2000
+MAX_MCQ_QUESTIONS = 20
 FALLBACK_AI_REPLY = "Thanks. Could you clarify that point a little more?"
 FALLBACK_MODEL_ANSWER = "The submission does not provide enough detail to answer this directly, but a reasonable response would restate the relevant claim and support it with evidence from the work."
 HEARTBEAT_GRACE_SECONDS = 20
 HEARTBEAT_STALE_SECONDS = 25
 LOG_STALE_SECONDS = 30
+
+MCQ_SYSTEM_PROMPT = """You generate multiple-choice questions (MCQs) based strictly on the submission materials.
+Each MCQ must have exactly one correct answer and three plausible distractors.
+Avoid trick questions. Keep each option concise (<= 12 words). Do not label options.
+Do NOT use numerical answers (no digits or numeric values in any option).
+If you cannot find enough grounded facts, return fewer questions.
+Return ONLY JSON in the form:
+{"questions":[{"question":"...","correct_answer":"...","distractors":["...","...","..."]}]}"""
+
+
+def build_mcq_results(session):
+    questions = list(VivaSessionMcqQuestion.objects.filter(session=session).order_by("order"))
+    if not questions:
+        return None
+    total = len(questions)
+    score = sum(1 for q in questions if q.student_index == q.correct_index)
+    percent = int(round((score / total) * 100)) if total else 0
+    completed = bool(session.mcq_completed) or all(q.student_index is not None for q in questions)
+    return {
+        "score": score,
+        "total": total,
+        "percent": percent,
+        "completed": completed,
+        "questions": [
+            {
+                "question": q.question,
+                "options": q.options or [],
+                "correct_index": q.correct_index,
+                "student_index": q.student_index,
+            }
+            for q in questions
+        ],
+    }
 
 
 def _format_feedback_author(user):
@@ -449,6 +484,113 @@ def generate_viva_reply(session):
     return question, model_answer
 
 
+def _parse_mcq_payload(raw_text):
+    if not raw_text:
+        return []
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*", "", cleaned).strip()
+        cleaned = re.sub(r"```$", "", cleaned).strip()
+    try:
+        data = json.loads(cleaned)
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        questions = data.get("questions")
+    elif isinstance(data, list):
+        questions = data
+    else:
+        return []
+    if not isinstance(questions, list):
+        return []
+    return questions
+
+
+def _normalize_mcq_questions(raw_questions):
+    normalized = []
+    for item in raw_questions or []:
+        if not isinstance(item, dict):
+            continue
+        question = (item.get("question") or "").strip()
+        correct = (item.get("correct_answer") or "").strip()
+        distractors = item.get("distractors") or []
+        if not question or not correct or not isinstance(distractors, list):
+            continue
+        cleaned_distractors = []
+        for d in distractors:
+            if not isinstance(d, str):
+                continue
+            text = d.strip()
+            if text:
+                cleaned_distractors.append(text)
+        unique = []
+        seen = set()
+        for option in [correct] + cleaned_distractors:
+            if option and option.lower() not in seen:
+                seen.add(option.lower())
+                unique.append(option)
+        if len(unique) < 4:
+            continue
+        if any(re.search(r"\d", opt or "") for opt in unique):
+            continue
+        if correct.lower() not in (u.lower() for u in unique):
+            continue
+        normalized.append({
+            "question": question,
+            "correct_answer": correct,
+            "distractors": [opt for opt in unique if opt.lower() != correct.lower()][:3],
+        })
+    return normalized
+
+
+def generate_mcq_questions(session, count):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing OPENAI_API_KEY")
+    assignment = session.submission.assignment
+    if not assignment.mcq_enabled or count <= 0:
+        return []
+    count = min(count, MAX_MCQ_QUESTIONS)
+    submission_context = build_submission_context(session)
+    client = OpenAI(api_key=api_key)
+    messages = [
+        {"role": "system", "content": MCQ_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"Create {count} MCQs.\n\n"
+                f"Submission materials:\n{submission_context}"
+            ),
+        },
+    ]
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        temperature=0.3,
+    )
+    raw_text = (response.choices[0].message.content or "").strip()
+    raw_questions = _parse_mcq_payload(raw_text)
+    normalized = _normalize_mcq_questions(raw_questions)
+    if not normalized:
+        return []
+    questions = []
+    for idx, item in enumerate(normalized[:count], start=1):
+        options = [item["correct_answer"]] + item["distractors"]
+        random.shuffle(options)
+        correct_index = options.index(item["correct_answer"])
+        questions.append(
+            VivaSessionMcqQuestion(
+                session=session,
+                order=idx,
+                question=item["question"],
+                options=options,
+                correct_index=correct_index,
+            )
+        )
+    VivaSessionMcqQuestion.objects.bulk_create(questions)
+    return list(VivaSessionMcqQuestion.objects.filter(session=session).order_by("order"))
+
+
 def generate_viva_feedback(session):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -799,33 +941,37 @@ def viva_send_message(request):
         session.save(update_fields=update_fields)
 
     if ended:
+        assignment = session.submission.assignment
         feedback_text = session.feedback_text or ""
         if not feedback_text:
-            try:
-                feedback_text = generate_viva_feedback(session)
-            except Exception:
-                feedback_text = ""
-            if feedback_text:
-                session.feedback_text = feedback_text
-                session.save(update_fields=["feedback_text"])
+            if not assignment.mcq_only or VivaMessage.objects.filter(session=session).exists():
+                try:
+                    feedback_text = generate_viva_feedback(session)
+                except Exception:
+                    feedback_text = ""
+                if feedback_text:
+                    session.feedback_text = feedback_text
+                    session.save(update_fields=["feedback_text"])
 
         if not (session.knowledge_flag or "").strip():
-            try:
-                knowledge_flag = generate_knowledge_flag(session)
-            except Exception:
-                knowledge_flag = ""
-            if knowledge_flag:
-                session.knowledge_flag = knowledge_flag
-                session.save(update_fields=["knowledge_flag"])
+            if not assignment.mcq_only or VivaMessage.objects.filter(session=session).exists():
+                try:
+                    knowledge_flag = generate_knowledge_flag(session)
+                except Exception:
+                    knowledge_flag = ""
+                if knowledge_flag:
+                    session.knowledge_flag = knowledge_flag
+                    session.save(update_fields=["knowledge_flag"])
 
-        assignment = session.submission.assignment
         feedback_visible = bool(assignment.ai_feedback_visible)
+        mcq_results = build_mcq_results(session)
 
         return JsonResponse({
             "status": "ok",
             "message_id": msg.id if msg else None,
             "feedback_text": feedback_text if feedback_visible else "",
             "feedback_visible": feedback_visible,
+            "mcq_results": mcq_results,
         })
 
     if rating is not None or sender.lower() != "student" or not text:
@@ -864,6 +1010,131 @@ def viva_send_message(request):
         response_payload["error"] = error_message
 
     return JsonResponse(response_payload, status=500 if status == "error" else 200)
+
+
+@csrf_exempt
+def viva_mcq(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    session_id = payload.get("session_id")
+    try:
+        session = VivaSession.objects.select_related("submission__assignment").get(id=session_id)
+    except VivaSession.DoesNotExist:
+        return HttpResponseBadRequest("Invalid viva session ID")
+
+    if request.session.get("lti_user_id") and str(request.session.get("lti_user_id")) != str(session.submission.user_id):
+        return HttpResponseBadRequest("Forbidden")
+
+    assignment = session.submission.assignment
+    question_count = int(assignment.mcq_question_count or 0)
+    if assignment.mcq_enabled and question_count <= 0:
+        question_count = 1
+    if not assignment.mcq_enabled or question_count <= 0:
+        return JsonResponse({"status": "disabled"})
+
+    questions_qs = VivaSessionMcqQuestion.objects.filter(session=session).order_by("order")
+    if not questions_qs.exists():
+        try:
+            questions_qs = generate_mcq_questions(session, question_count)
+        except Exception as exc:
+            return JsonResponse({"status": "error", "message": str(exc)}, status=500)
+
+    if not questions_qs:
+        return JsonResponse({"status": "error", "message": "Unable to generate MCQ questions."}, status=500)
+
+    if session.mcq_total is None:
+        session.mcq_total = len(questions_qs)
+        session.save(update_fields=["mcq_total"])
+
+    questions_payload = []
+    for q in questions_qs:
+        questions_payload.append({
+            "id": q.id,
+            "question_id": q.id,
+            "question": q.question,
+            "options": q.options,
+            "selected_index": q.student_index,
+        })
+
+    return JsonResponse({
+        "status": "ok",
+        "completed": bool(session.mcq_completed),
+        "score": session.mcq_score,
+        "total": session.mcq_total or len(questions_payload),
+        "questions": questions_payload,
+    })
+
+
+@csrf_exempt
+def viva_mcq_answer(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = request.POST
+
+    session_id = payload.get("session_id")
+    question_id = payload.get("question_id") or payload.get("id")
+    selected_index = payload.get("selected_index")
+
+    try:
+        session = VivaSession.objects.select_related("submission__assignment").get(id=session_id)
+    except VivaSession.DoesNotExist:
+        return HttpResponseBadRequest("Invalid viva session ID")
+
+    if request.session.get("lti_user_id") and str(request.session.get("lti_user_id")) != str(session.submission.user_id):
+        return HttpResponseBadRequest("Forbidden")
+
+    try:
+        selected_index = int(selected_index)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("Invalid selected index")
+
+    if selected_index < 0 or selected_index > 3:
+        return HttpResponseBadRequest("Invalid selected index")
+
+    try:
+        question = VivaSessionMcqQuestion.objects.get(id=question_id, session=session)
+    except VivaSessionMcqQuestion.DoesNotExist:
+        return HttpResponseBadRequest("Invalid question ID")
+
+    if session.mcq_completed:
+        return JsonResponse({
+            "status": "ok",
+            "completed": True,
+            "score": session.mcq_score,
+            "total": session.mcq_total,
+        })
+
+    question.student_index = selected_index
+    question.save(update_fields=["student_index"])
+
+    questions = list(VivaSessionMcqQuestion.objects.filter(session=session))
+    total = len(questions)
+    if total and all(q.student_index is not None for q in questions):
+        score = sum(1 for q in questions if q.student_index == q.correct_index)
+        session.mcq_completed = True
+        session.mcq_score = score
+        session.mcq_total = total
+        session.save(update_fields=["mcq_completed", "mcq_score", "mcq_total"])
+        completed = True
+    else:
+        completed = False
+
+    return JsonResponse({
+        "status": "ok",
+        "completed": completed,
+        "score": session.mcq_score if completed else None,
+        "total": session.mcq_total if completed else total,
+    })
 
 
 def viva_feedback_update(request, session_id):
@@ -1131,7 +1402,7 @@ def viva_log_event(request):
     allowed = set()
     tracking_enabled = assignment.event_tracking or assignment.keystroke_tracking or assignment.arrhythmic_typing
     if assignment.event_tracking:
-        allowed.update({"blur", "focus", "visibility", "paste", "copy"})
+        allowed.update({"blur", "focus", "visibility", "paste", "copy", "mcq_copy"})
     if assignment.keystroke_tracking:
         allowed.update({"typing_cadence"})
     if assignment.arrhythmic_typing:
@@ -1224,28 +1495,81 @@ def compute_integrity_flags(session):
     tracking_enabled = assignment.event_tracking or assignment.keystroke_tracking or assignment.arrhythmic_typing
     now_ts = now()
 
-    blur_count = logs.filter(event_type="blur").count()
+    def split_mcq_counts(log_queryset):
+        mcq_count = 0
+        viva_count = 0
+        for entry in log_queryset:
+            data = entry.event_data or {}
+            if data.get("mcq_active") or data.get("mcq_state") or data.get("mcq_question_order"):
+                mcq_count += 1
+            else:
+                viva_count += 1
+        return mcq_count, viva_count
+
+    blur_logs = logs.filter(event_type="blur")
     paste_logs = logs.filter(event_type="paste")
     copy_logs = logs.filter(event_type="copy", event_data__source="ai")
+    mcq_copy_logs = logs.filter(event_type="mcq_copy")
     msgs = VivaMessage.objects.filter(session=session).order_by("timestamp")
 
-    if assignment.event_tracking and blur_count >= 3:
-        flags.append(f"Frequent tab/window switching ({blur_count}×).")
+    if assignment.event_tracking and blur_logs.count() >= 3:
+        mcq_count, viva_count = split_mcq_counts(blur_logs)
+        parts = []
+        if mcq_count:
+            parts.append(f"MCQ: {mcq_count}×")
+        if viva_count:
+            parts.append(f"Viva: {viva_count}×")
+        suffix = f" ({', '.join(parts)})" if parts else ""
+        flags.append(f"Frequent tab/window switching{suffix}.")
 
     if assignment.event_tracking and paste_logs.exists():
-        flags.append(f"Paste events detected ({paste_logs.count()}×).")
-        large_paste_count = 0
+        mcq_count, viva_count = split_mcq_counts(paste_logs)
+        parts = []
+        if mcq_count:
+            parts.append(f"MCQ: {mcq_count}×")
+        if viva_count:
+            parts.append(f"Viva: {viva_count}×")
+        suffix = f" ({', '.join(parts)})" if parts else ""
+        flags.append(f"Paste events detected{suffix}.")
+        large_paste_mcq = 0
+        large_paste_viva = 0
         for p in paste_logs:
             pasted = p.event_data.get("text", "")
             length = p.event_data.get("length") or (len(pasted) if pasted else 0)
             if length and length > 20:
-                large_paste_count += 1
-        if large_paste_count:
-            suffix = f" ({large_paste_count}x)" if large_paste_count > 1 else ""
+                data = p.event_data or {}
+                if data.get("mcq_active") or data.get("mcq_state") or data.get("mcq_question_order"):
+                    large_paste_mcq += 1
+                else:
+                    large_paste_viva += 1
+        if large_paste_mcq or large_paste_viva:
+            parts = []
+            if large_paste_mcq:
+                parts.append(f"MCQ: {large_paste_mcq}×")
+            if large_paste_viva:
+                parts.append(f"Viva: {large_paste_viva}×")
+            suffix = f" ({', '.join(parts)})" if parts else ""
             flags.append(f"Large pasted snippet detected (>20 chars){suffix}.")
 
     if assignment.event_tracking and copy_logs.exists():
-        flags.append(f"AI message copied ({copy_logs.count()}×).")
+        mcq_count, viva_count = split_mcq_counts(copy_logs)
+        parts = []
+        if mcq_count:
+            parts.append(f"MCQ: {mcq_count}×")
+        if viva_count:
+            parts.append(f"Viva: {viva_count}×")
+        suffix = f" ({', '.join(parts)})" if parts else ""
+        flags.append(f"AI message copied{suffix}.")
+
+    if assignment.event_tracking and mcq_copy_logs.exists():
+        mcq_count, viva_count = split_mcq_counts(mcq_copy_logs)
+        parts = []
+        if mcq_count:
+            parts.append(f"MCQ: {mcq_count}×")
+        if viva_count:
+            parts.append(f"Viva: {viva_count}×")
+        suffix = f" ({', '.join(parts)})" if parts else ""
+        flags.append(f"MCQ text copied{suffix}.")
 
     if assignment.event_tracking and session.duration_seconds:
         if session.duration_seconds < assignment.viva_duration_seconds * 0.25:
