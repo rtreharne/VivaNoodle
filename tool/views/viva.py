@@ -51,6 +51,7 @@ Return only the answer text, with no labels or JSON."""
 FEEDBACK_SYSTEM_PROMPT = """You are providing feedback after an informal, text-based viva chat.
 Write a single, concise paragraph of feedback (2-4 sentences).
 Be direct and evidence-based. If the student did not answer the questions, went off topic, or provided minimal content, state that plainly and explain that understanding could not be demonstrated.
+Do not penalize brevity alone; short, direct answers can still show understanding if they address the prompt.
 Do not add praise or credit that is not supported by the transcript. Avoid generic positivity.
 Do not expect formal academic critique, citations, or theoretical frameworks. Keep the tone practical and conversational.
 Focus on whether the student engaged with the prompts, showed basic understanding, and used relevant details from their submission, then point to 1-2 concrete ways to improve next time.
@@ -309,11 +310,18 @@ def _use_feedback_fallback(history):
     ]
     if not student_texts:
         return True
+    classifications = [_classify_student_response(text) for text in student_texts]
+    answer_count = sum(1 for c in classifications if c == "answer")
+    nonanswer_count = sum(1 for c in classifications if c in ("offtopic", "nonanswer"))
     total_words = sum(_word_count(text) for text in student_texts)
     substantive = sum(1 for text in student_texts if _word_count(text) >= 20)
-    if total_words < 40:
+    if answer_count == 0:
         return True
-    if substantive == 0 and total_words < 80:
+    if nonanswer_count >= max(2, len(student_texts) - 1) and total_words < 40:
+        return True
+    if total_words < 12 and answer_count < 2:
+        return True
+    if substantive == 0 and total_words < 60 and answer_count < 3:
         return True
     return False
 
@@ -1599,8 +1607,10 @@ def compute_integrity_flags(session):
         if session.tamper_suspected:
             flags.append("Potential tampering detected (client logging disrupted).")
         else:
-            if session.last_heartbeat_at and (now_ts - session.last_heartbeat_at).total_seconds() > HEARTBEAT_STALE_SECONDS:
-                flags.append("Heartbeat missing or delayed during session.")
+            if session.last_heartbeat_at:
+                heartbeat_anchor = session.ended_at or now_ts
+                if (heartbeat_anchor - session.last_heartbeat_at).total_seconds() > HEARTBEAT_STALE_SECONDS:
+                    flags.append("Heartbeat missing or delayed during session.")
             if session.ended_at:
                 if not session.last_heartbeat_at:
                     flags.append("No heartbeat received from client.")
