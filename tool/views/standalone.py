@@ -1,5 +1,6 @@
 import secrets
 from datetime import timedelta
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db.models import Q
@@ -16,6 +17,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.text import slugify
 from django.utils.timezone import now
 from django.core.mail import send_mail
+from django.template.loader import render_to_string
 
 from ..models import (
     Assignment,
@@ -37,6 +39,13 @@ INSTITUTION_TYPES = [
     "Government",
     "Other",
 ]
+
+
+def _brand_url_from_link(link):
+    parts = urlsplit(link or "")
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    return ""
 
 # Shortlist of UK Higher Education Institutions (circa HESA list)
 UK_HE_INSTITUTIONS = [
@@ -1139,18 +1148,23 @@ def _send_invite_email(request, invite: AssignmentInvitation):
         reverse("accept_invite", args=[invite.token])
     )
     subject = f"You're invited to a MachinaViva assignment: {invite.assignment.title}"
+    expires_at = invite.expires_at.strftime("%Y-%m-%d %H:%M UTC")
     body = (
         f"You have been invited to complete a viva for \"{invite.assignment.title}\".\n\n"
         f"Use this link to accept and create your account or log in:\n{link}\n\n"
-        f"This link expires on {invite.expires_at.strftime('%Y-%m-%d %H:%M UTC')}."
+        f"This link expires on {expires_at}."
     )
-    html_body = (
-        "<p>You have been invited to complete a viva for "
-        f"\"{invite.assignment.title}\".</p>"
-        "<p>Use this link to accept and create your account or log in:<br>"
-        f"<a href=\"{link}\">{link}</a></p>"
-        f"<p>This link expires on {invite.expires_at.strftime('%Y-%m-%d %H:%M UTC')}.</p>"
-    )
+    html_body = render_to_string("tool/email/invite.html", {
+        "brand_url": _brand_url_from_link(link),
+        "preheader": f"Invite to {invite.assignment.title}",
+        "eyebrow": "Assignment invite",
+        "title": "You're invited to a MachinaViva viva",
+        "assignment_title": invite.assignment.title,
+        "link": link,
+        "cta_label": "Accept invitation",
+        "expires_at": expires_at,
+        "year": now().year,
+    })
     send_mail(
         subject=subject,
         message=body,
@@ -1170,12 +1184,15 @@ def _send_verification_email(request, user: User, token: str):
         f"{link}\n\n"
         "If you did not request this, you can ignore this email."
     )
-    html_body = (
-        "<p>Welcome to MachinaViva.</p>"
-        "<p>Please verify your email to activate your instructor account:<br>"
-        f"<a href=\"{link}\">{link}</a></p>"
-        "<p>If you did not request this, you can ignore this email.</p>"
-    )
+    html_body = render_to_string("tool/email/verify.html", {
+        "brand_url": _brand_url_from_link(link),
+        "preheader": "Verify your email to activate your instructor account.",
+        "eyebrow": "Verify your email",
+        "title": "Confirm your instructor account",
+        "link": link,
+        "cta_label": "Verify email",
+        "year": now().year,
+    })
     send_mail(
         subject=subject,
         message=body,
@@ -1193,12 +1210,15 @@ def _send_password_reset_email(user: User, link: str):
         f"Use this link to set a new password:\n{link}\n\n"
         "If you did not request this, you can ignore this email."
     )
-    html_body = (
-        "<p>We received a request to reset the password for your MachinaViva instructor account.</p>"
-        "<p>Use this link to set a new password:<br>"
-        f"<a href=\"{link}\">{link}</a></p>"
-        "<p>If you did not request this, you can ignore this email.</p>"
-    )
+    html_body = render_to_string("tool/email/password_reset.html", {
+        "brand_url": _brand_url_from_link(link),
+        "preheader": "Reset your instructor password.",
+        "eyebrow": "Password reset",
+        "title": "Reset your instructor password",
+        "link": link,
+        "cta_label": "Reset password",
+        "year": now().year,
+    })
     send_mail(
         subject=subject,
         message=body,
@@ -1216,12 +1236,16 @@ def _send_student_password_reset_email(user: User, link: str, assignment_title: 
         f"Use this link to set a new password:\n{link}\n\n"
         "If you did not request this, you can ignore this email."
     )
-    html_body = (
-        f"<p>We received a request to reset the password for your MachinaViva student account for \"{assignment_title}\".</p>"
-        "<p>Use this link to set a new password:<br>"
-        f"<a href=\"{link}\">{link}</a></p>"
-        "<p>If you did not request this, you can ignore this email.</p>"
-    )
+    html_body = render_to_string("tool/email/student_password_reset.html", {
+        "brand_url": _brand_url_from_link(link),
+        "preheader": "Reset your student password.",
+        "eyebrow": "Password reset",
+        "title": "Reset your student password",
+        "assignment_title": assignment_title,
+        "link": link,
+        "cta_label": "Reset password",
+        "year": now().year,
+    })
     send_mail(
         subject=subject,
         message=body,
